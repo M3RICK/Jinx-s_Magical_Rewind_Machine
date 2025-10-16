@@ -1,23 +1,34 @@
 import boto3
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+from boto3.resources.base import ServiceResource
+from botocore.exceptions import ClientError, EndpointConnectionError
 
-load_dotenv()
+def get_dynamodb_reasources() -> ServiceResource:
+    dynamodb = boto3.resource(
+        'dynamodb',
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=os.getenv("AWS_DEFAULT_REGION"))
 
-def get_dynamodb_reasources():
-    region = os.getenv('AWS_DEFAULT_REGION')
- 
-    if not region:
-        raise ValueError(
-            "AWS_DEFAULT_REGION not found in environment variables! "
-            "Make sure .env file exists and contains the correct reigon"
-        )
-    return boto3.resource('dynamodb', region_name=region)
+    if not dynamodb:
+        raise ValueError("Can't connect to Database")
+    return dynamodb
 
-s3 = boto3.resource('s3')
+def test_connection(dynamodb: ServiceResource) -> bool:
+    try:
+        print(list(dynamodb.tables.all()))
+        print("Connection succes")
+        return True
+    except EndpointConnectionError:
+        print("Connection Error")
+    except ClientError as e:
+        print(f"AWS : {e.response['Error']['Message']}")
+    except Exception as e:
+        print(f"Error: {e}")
+    return False
 
-for bucket in s3.buckets.all():
-    print(bucket.name)
-
-# s3.upload_file('local.txt', 'mon-bucket', 'dossier/remote.txt')
-# s3.download_file('mon-bucket', 'dossier/remote.txt', 'local_copy.txt')
+if __name__ == '__main__':
+    load_dotenv()
+    db = get_dynamodb_reasources()
+    test_connection(db)
