@@ -1,5 +1,5 @@
-import boto3
 import os
+import boto3
 from dotenv import load_dotenv
 from boto3.resources.base import ServiceResource
 from botocore.exceptions import ClientError, EndpointConnectionError
@@ -17,8 +17,7 @@ def get_dynamodb_reasources() -> ServiceResource:
 
 def test_connection(dynamodb: ServiceResource) -> bool:
     try:
-        print(list(dynamodb.tables.all()))
-        print("Connection succes")
+        print(list(dynamodb.tables.all()), "\nConnection succes")
         return True
     except EndpointConnectionError:
         print("Connection Error")
