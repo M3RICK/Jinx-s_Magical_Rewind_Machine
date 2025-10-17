@@ -10,6 +10,7 @@ services:
       - ./api/src:/app/src
       - ./api/requirements.txt:/app/requirements.txt
       - ./app/src:/app/frontend
+      - ./app/public:/app/public
     environment:
       - FLASK_APP=src/main.py
       - FLASK_ENV=development
