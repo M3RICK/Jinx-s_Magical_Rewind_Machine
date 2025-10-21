@@ -2,7 +2,7 @@ name: Sync to Portfolio Repos
 on:
   push:
     branches:
-      - '**'
+      - main
 
 jobs:
   sync:
