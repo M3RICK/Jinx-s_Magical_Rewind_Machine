@@ -5,7 +5,6 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Get the project root directory (two levels up from this file)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FRONTEND_FOLDER = os.path.join(PROJECT_ROOT, 'frontend')
 STATIC_FOLDER = os.path.join(FRONTEND_FOLDER, 'static')
