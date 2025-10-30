@@ -1,10 +1,13 @@
-from ..Core import Core
+class RiotAccountAPI:
 
+    def __init__(self, core):
+        self.core = core
 
-class RiotAccountAPI(Core):
     def get_puuid(self, game_name, tag_line, region="europe"):
-        url = self._build_region_url(region, f"/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}")
-        data = self._make_request(url)
+        url = self.core._build_region_url(
+            region, f"/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
+        )
+        data = self.core._make_request(url)
 
         if data:
             return data["puuid"]

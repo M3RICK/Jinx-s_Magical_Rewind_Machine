@@ -1,12 +1,32 @@
-from ..Core import Core
+class ChampionMastery:
 
+    def __init__(self, core):
+        self.core = core
 
-class ChampionMastery(Core):
     def get_all_masteries(self, puuid, platform="euw1"):
-        url = self._build_server_url(platform, f"/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}")
-        return self._make_request(url)
+        try:
+            return self.core.watcher.champion_mastery.by_puuid(platform, puuid)
+        except Exception as e:
+            print(f"Error fetching all masteries: {e}")
+            return None
+
 
     def get_top_masteries(self, puuid, platform="euw1", count=10):
-        url = self._build_server_url(platform, f"/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top")
-        params = {"count": count}
-        return self._make_request(url, params=params)
+        try:
+            all_masteries = self.core.watcher.champion_mastery.by_puuid(
+                platform,
+                puuid
+            )
+
+            if all_masteries:
+                sorted_masteries = sorted(
+                    all_masteries,
+                    key=lambda x: x['championPoints'],
+                    reverse=True
+                )
+                return sorted_masteries[:count]
+
+            return None
+        except Exception as e:
+            print(f"Error fetching top masteries: {e}")
+            return None

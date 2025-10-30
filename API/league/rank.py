@@ -1,8 +1,14 @@
-from ..Core import Core
+class Rank:
 
+    def __init__(self, core):
+        self.core = core
 
-class Rank(Core):
     def get_rank_info(self, identifier, platform="euw1", by_puuid=True):
-        endpoint = "by-puuid" if by_puuid else "by-summoner"
-        url = self._build_server_url(platform, f"/lol/league/v4/entries/{endpoint}/{identifier}")
-        return self._make_request(url)
+        try:
+            if by_puuid:
+                return self.core.watcher.league.by_puuid(platform, identifier)
+            else:
+                return self.core.watcher.league.by_summoner(platform, identifier)
+        except Exception as e:
+            print(f"Error fetching rank info: {e}")
+            return None
