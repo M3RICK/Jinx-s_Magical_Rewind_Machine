@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 from langchain_aws import ChatBedrock
 
@@ -76,8 +77,21 @@ def chat_loop():
         try:
             # Add user message to history
             messages.append(("human", user_input))
-            # Get AI response
-            response = chat.invoke(messages)
+
+            # Get AI response with retry logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = chat.invoke(messages)
+                    break
+                except Exception as retry_error:
+                    if "Too many connections" in str(retry_error) and attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                        print(f"\nRate limited. Waiting {wait_time}s before retry...")
+                        time.sleep(wait_time)
+                    else:
+                        raise
+
             # Add AI response to history
             messages.append(("ai", response.content))
             # Print response
