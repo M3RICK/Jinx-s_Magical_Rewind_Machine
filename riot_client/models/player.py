@@ -1,8 +1,8 @@
-from API.riot.account import RiotAccountAPI
-from API.league.summoner import Summoner
-from API.league.rank import Rank
-from API.league.match import Match
-from API.league.mastery import ChampionMastery
+from riot_client.riot.account import RiotAccountAPI
+from riot_client.league.summoner import Summoner
+from riot_client.league.rank import Rank
+from riot_client.league.match import Match
+from riot_client.league.mastery import ChampionMastery
 
 
 class Player:
@@ -476,7 +476,7 @@ class Player:
         return "UNRANKED"
 
     def add_benchmarks(self):
-        from API.benchmarks import get_benchmark, calculate_percentile
+        from riot_client.benchmarks import get_benchmark, calculate_percentile
 
         if not self.aggregated_stats:
             print("No aggregated stats. Call process_matches() first.")

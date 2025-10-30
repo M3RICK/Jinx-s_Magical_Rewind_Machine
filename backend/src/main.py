@@ -1,19 +1,21 @@
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-FRONTEND_FOLDER = '/app/frontend'
-PUBLIC_FOLDER = '/app/public'
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+FRONTEND_FOLDER = os.path.join(PROJECT_ROOT, 'frontend')
+STATIC_FOLDER = os.path.join(FRONTEND_FOLDER, 'static')
 
 @app.route('/')
 def index():
     return send_from_directory(FRONTEND_FOLDER, 'index.html')
 
-@app.route('/public/<path:filename>')
-def public_files(filename):
-    return send_from_directory(PUBLIC_FOLDER, filename)
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory(STATIC_FOLDER, filename)
 
 @app.route('/api/rewind', methods=['POST'])
 def rewind():

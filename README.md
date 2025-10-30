@@ -8,9 +8,9 @@
 
 | Member | Role | Responsibilities |
 |--------|------|------------------|
-| **ThierryB** | Database Lead | Database architecture, DynamoDB design & optimization |
+| **ThierryB** | AWS & Backend Lead | Database architecture, DynamoDB design & optimization, AWS Bedrock integration, backend development |
 | **AymericL** | API Integration | Riot Games API integration, data pipeline management |
-| **HugoP** | Spa & Surfing | idk |
+| **HugoP** | Frontend Lead | Frontend development, UI/UX design, user interface implementation |
 
 ## Project Overview
 
@@ -29,10 +29,21 @@ We're building an intelligent agent that transforms raw League of Legends match 
   - NoSQL flexibility perfect for varying match data structures
   - Future-proof solution as the project scales
 
-### AI/ML (Under Evaluation)
-We're currently evaluating two approaches:
-1. **Custom ML Solution:** Building our own models if time permits
-2. **AWS AI Services:** Leveraging Amazon Bedrock, SageMaker, or other AWS Generative AI services
+### AI/ML
+- **AI Model:** Claude Sonnet 4.5 via Amazon Bedrock
+  - Provides intelligent League of Legends coaching and customer service
+  - Delivers personalized gameplay analysis and improvement recommendations
+  - Integrates seamlessly with AWS infrastructure for scalable AI-powered insights
+
+- **Under Evaluation:** Lightweight AI classifier
+  - Fast pre-processing to determine if user queries require RAG/additional data
+  - Returns simple "yes"/"no" responses for optimized routing
+  - Enables faster responses for basic queries while preserving Claude for complex analysis
+
+- **Under Evaluation:** Content moderation AI
+  - Real-time monitoring of user input for toxic/violent content detection
+  - Ensures safe and positive community interactions
+  - Automatic filtering and escalation for inappropriate content
 
 ### APIs
 - Riot Games League of Legends API for match history and player data
