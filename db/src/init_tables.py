@@ -36,6 +36,16 @@ TABLE_CONFIGS = [
             {'AttributeName': 'puuid', 'AttributeType': 'S'},
             {'AttributeName': 'feedback_id', 'AttributeType': 'S'}  # Format: "YYYY-MM-DD_HHMMSS" or UUID
         ]
+    },
+    {
+        'name': 'Sessions',
+        'description': 'Maps session tokens to player PUUIDs for persistent access',
+        'key_schema': [
+            {'AttributeName': 'session_token', 'KeyType': 'HASH'}  # Partition key: UUID session token
+        ],
+        'attribute_definitions': [
+            {'AttributeName': 'session_token', 'AttributeType': 'S'}  # UUID format
+        ]
     }
 ]
 

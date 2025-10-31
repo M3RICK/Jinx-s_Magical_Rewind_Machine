@@ -2,6 +2,7 @@ import os
 import time
 from dotenv import load_dotenv
 from langchain_aws import ChatBedrock
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 load_dotenv()
 
@@ -63,7 +64,7 @@ def chat_loop():
     chat = create_chat()
     print("Connected! Start chatting:\n")
     # Our "memory" is just a list of messages
-    messages = [("system", SYSTEM_PROMPT)]
+    messages = [SystemMessage(content=SYSTEM_PROMPT)]
 
     while True:
         # Get user input
@@ -76,7 +77,7 @@ def chat_loop():
 
         try:
             # Add user message to history
-            messages.append(("human", user_input))
+            messages.append(HumanMessage(content=user_input))
 
             # Get AI response with retry logic
             max_retries = 3
@@ -93,14 +94,14 @@ def chat_loop():
                         raise
 
             # Add AI response to history
-            messages.append(("ai", response.content))
+            messages.append(AIMessage(content=response.content))
             # Print response
             print(f"\nAI: {response.content}\n")
 
         except Exception as e:
             print(f"\nError: {e}\n")
             # Remove the failed user message
-            if messages[-1][0] == "human":
+            if isinstance(messages[-1], HumanMessage):
                 messages.pop()
 
 if __name__ == "__main__":
