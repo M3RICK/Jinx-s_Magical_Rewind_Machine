@@ -8,8 +8,6 @@ import uuid
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from dotenv import load_dotenv
-from langchain_aws import ChatBedrock
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from riot_client.riot.account import RiotAccountAPI
 from db.src.db_handshake import get_dynamodb_reasources
 
@@ -167,3 +165,7 @@ def run_chat(session_token=None):
     # TODO: Initialize AI chat session with player context
     # TODO: Load player stats and pass to AI
     # TODO: Implement chat loop
+
+    # TODO: get name + region -> check if account exists (riot) -> check if name is in dynamoDB -> get equivalent PUUID -> ...
+    #                                                          |  
+    #                                                           ->  fail
