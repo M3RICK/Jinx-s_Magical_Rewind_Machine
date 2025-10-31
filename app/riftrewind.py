@@ -13,7 +13,7 @@ VERSION = "1.0.0"
 def print_help():
     print("\nRiftRewind CLI - Available Commands:")
     print("-" * 50)
-    print("  chat        Start AI coaching chat (requires session token)")
+    print("  chat        Start AI coaching chat with player lookup")
     print("  sync        Sync databases with Riot API data")
     print("  help        Show this help message")
     print("  version     Show version information")
@@ -49,11 +49,7 @@ def main():
                 case "version":
                     print(f"RiftRewind CLI v{VERSION}")
                 case "chat":
-                    if args:
-                        run_chat(args[0])
-                    else:
-                        print("Usage: chat <session_token>")
-                        print("Example: chat a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6")
+                    run_chat()
                 case "sync":
                     run_sync()
                 case "exit" | "quit" | "q" | "bye" | "kill":
