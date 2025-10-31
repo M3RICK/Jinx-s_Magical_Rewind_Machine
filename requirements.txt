@@ -1,6 +1,7 @@
 # Riot API
 riotwatcher==3.3.1
 requests==2.32.5
+aiohttp[speedups]
 
 # Data analysis
 pandas==2.3.3
