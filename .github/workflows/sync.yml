@@ -2,7 +2,7 @@ name: Sync to Portfolio Repos
 on:
   push:
     branches:
-      - '**'
+      - main
 
 jobs:
   sync:
@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          persist-credentials: false  # ← ADD THIS LINE!
+          persist-credentials: false
 
       - name: Push to cracked portfolio
         run: |

@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  api:
+    build: ./app/backend
+    container_name: flask_api
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app/backend/src:/app/src
+      - ./app/backend/requirements.txt:/app/requirements.txt
+      - ./app/frontend:/app/frontend
+    environment:
+      - FLASK_APP=src/main.py
+      - FLASK_ENV=development
+      - FLASK_RUN_HOST=0.0.0.0
+    command: flask run
