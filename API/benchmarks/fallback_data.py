@@ -1,4 +1,3 @@
-# CS per minute benchmarks by rank and role
 CS_BENCHMARKS = {
     "TOP": {
         "IRON": 4.5,
@@ -62,7 +61,6 @@ CS_BENCHMARKS = {
     },
 }
 
-# CS at 10min benchmarks
 CS_AT_10_BENCHMARKS = {
     "TOP": {
         "IRON": 55,
@@ -102,7 +100,6 @@ CS_AT_10_BENCHMARKS = {
     },
 }
 
-# Vision score benchmarks
 VISION_SCORE_BENCHMARKS = {
     "TOP": {
         "IRON": 8,
@@ -166,7 +163,6 @@ VISION_SCORE_BENCHMARKS = {
     },
 }
 
-# KDA benchmarks
 KDA_BENCHMARKS = {
     "IRON": 2.0,
     "BRONZE": 2.2,
@@ -182,18 +178,7 @@ KDA_BENCHMARKS = {
 
 
 def get_benchmark(stat_type, role, rank):
-    """
-    Get benchmark value for a specific stat, role, and rank
-
-    Args:
-        stat_type: 'cs_per_min', 'cs_at_10', 'vision_score', 'kda'
-        role: Player's role
-        rank: Player's rank tier (e.g., 'GOLD')
-
-    Returns:
-        Benchmark value or None
-    """
-    rank = rank.split("_")[0]  # Convert GOLD_II to GOLD
+    rank = rank.split("_")[0]
 
     if stat_type == "cs_per_min":
         return CS_BENCHMARKS.get(role, {}).get(rank)
@@ -208,23 +193,10 @@ def get_benchmark(stat_type, role, rank):
 
 
 def calculate_percentile(player_value, benchmark_value):
-    """
-    Calculate rough percentile based on comparison to benchmark
-    Benchmark = 50th percentile
-
-    Args:
-        player_value: Player's stat value
-        benchmark_value: Rank average (50th percentile)
-
-    Returns:
-        Estimated percentile (0-100)
-    """
     if not benchmark_value:
         return None
 
-    # Simple calculation: every 10% deviation = 10 percentile points
     deviation = (player_value - benchmark_value) / benchmark_value
     percentile = 50 + (deviation * 100)
 
-    # Clamp between 1 and 99
     return max(1, min(99, int(percentile)))
