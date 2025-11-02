@@ -76,13 +76,13 @@ class ConversationService:
         """
         return self.conversation_repo.get_conversation(puuid, conversation_id)
 
-    def get_conversation_history(self, puuid: str, limit: int = 100) -> List[Conversation]:
+    def get_conversation_history(self, puuid: str, limit: int = 10) -> List[Conversation]:
         """
         Get recent conversation history for a player.
 
         Args:
             puuid: Player's unique identifier
-            limit: Maximum number of conversations to return (default: 100 for testing)
+            limit: Maximum number of conversations to return
 
         Returns:
             List of Conversation objects

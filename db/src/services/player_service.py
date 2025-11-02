@@ -1,7 +1,6 @@
 from typing import Optional, Tuple
 import sys
 import os
-import asyncio
 
 # Add parent directories to path to import API modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
@@ -164,6 +163,59 @@ class PlayerService:
 
         return self.player_repo.update(player)
 
+    def sync_player_matches(self, puuid: str, match_count: int = 20) -> Tuple[int, str]:
+        """
+        Sync player's match history from Riot API to database.
+
+        Args:
+            puuid: Player's unique identifier
+            match_count: Number of recent matches to sync (default: 20)
+
+        Returns:
+            Tuple of (number of new matches synced, status message)
+        """
+        try:
+            # Import here to avoid circular dependencies
+            from API.league.match import get_match_history, get_match_details
+            from db.src.models.match_history import MatchHistory
+
+            player = self.player_repo.get_by_puuid(puuid)
+            if not player:
+                return 0, "Player not found"
+
+            # Get match IDs from Riot API
+            match_ids = get_match_history(puuid, player.region, count=match_count)
+
+            if not match_ids:
+                return 0, "No matches found"
+
+            new_matches = 0
+            for match_id in match_ids:
+                # Check if match already exists
+                if self.match_repo.match_exists(puuid, match_id):
+                    continue
+
+                # Fetch match details
+                match_data = get_match_details(match_id, player.region)
+                if not match_data:
+                    continue
+
+                # Create MatchHistory object
+                match_history = MatchHistory.from_riot_match(puuid, match_id, match_data)
+
+                # Save to database
+                self.match_repo.save_match(match_history)
+                new_matches += 1
+
+            # Clean up old matches if we have more than match_count
+            self.match_repo.delete_old_matches(puuid, keep_count=match_count)
+
+            return new_matches, f"Synced {new_matches} new matches"
+
+        except Exception as e:
+            print(f"Error syncing matches: {e}")
+            return 0, f"Error: {str(e)}"
+
     def get_player_overview(self, puuid: str) -> Optional[dict]:
         """
         Get complete player overview (profile + recent matches).
@@ -184,72 +236,4 @@ class PlayerService:
             'player': player.to_dynamodb_item(),
             'match_count': len(recent_matches),
             'recent_matches': [match.to_dynamodb_item() for match in recent_matches]
-        }
-
-    def calculate_player_stats_from_matches(self, puuid: str) -> Optional[dict]:
-        """
-        Calculate player statistics from their match history.
-
-        Analyzes matches to calculate:
-        - Winrate (percentage)
-        - Main role (most played)
-        - Top 5 champions (most played)
-
-        Args:
-            puuid: Player's unique identifier
-
-        Returns:
-            Dictionary with calculated stats or None if no matches
-        """
-        matches = self.match_repo.get_recent_matches(puuid, count=20)
-
-        if not matches:
-            return None
-
-        # Track stats
-        wins = 0
-        total_games = 0
-        role_counts = {}  # {role: count}
-        champion_counts = {}  # {champion_id: count}
-
-        for match in matches:
-            match_data = match.match_data
-            participants = match_data.get('info', {}).get('participants', [])
-
-            # Find this player's data in the match
-            player_data = next((p for p in participants if p.get('puuid') == puuid), None)
-
-            if not player_data:
-                continue
-
-            total_games += 1
-
-            # Count wins
-            if player_data.get('win', False):
-                wins += 1
-
-            # Count role
-            role = player_data.get('teamPosition', 'UNKNOWN')
-            if role and role != 'UNKNOWN':
-                role_counts[role] = role_counts.get(role, 0) + 1
-
-            # Count champion
-            champion_id = player_data.get('championId')
-            if champion_id:
-                champion_counts[champion_id] = champion_counts.get(champion_id, 0) + 1
-
-        # Calculate winrate
-        winrate = (wins / total_games * 100) if total_games > 0 else 0
-
-        # Get main role (most played)
-        main_role = max(role_counts.items(), key=lambda x: x[1])[0] if role_counts else None
-
-        # Get top 5 champions (most played)
-        sorted_champions = sorted(champion_counts.items(), key=lambda x: x[1], reverse=True)
-        main_champions = [str(champ_id) for champ_id, _ in sorted_champions[:5]]
-
-        return {
-            'winrate': round(winrate, 2),
-            'main_role': main_role,
-            'main_champions': main_champions
         }

@@ -27,11 +27,11 @@ def test_connection():
         dynamodb = get_dynamodb_reasources()
         client = dynamodb.meta.client
         response = client.list_tables()
-        print(f"✓ Connected! Found {len(response['TableNames'])} tables")
+        print(f"Connected! Found {len(response['TableNames'])} tables")
         print(f"  Tables: {', '.join(response['TableNames'])}")
         return True
     except Exception as e:
-        print(f"✗ Connection failed: {e}")
+        print(f"Connection failed: {e}")
         return False
 
 
@@ -56,24 +56,24 @@ def test_player_operations():
 
         print("  Creating test player...")
         player_repo.create(test_player)
-        print("  ✓ Player created")
+        print("  Player created")
 
         # Retrieve by PUUID
         print("  Retrieving by PUUID...")
         retrieved = player_repo.get_by_puuid("test_puuid_12345")
         if retrieved and retrieved.riot_id == "TestPlayer#NA1":
-            print("  ✓ Retrieved by PUUID")
+            print("  Retrieved by PUUID")
         else:
-            print("  ✗ Failed to retrieve by PUUID")
+            print("  Failed to retrieve by PUUID")
             return False
 
         # Retrieve by Riot ID
         print("  Retrieving by Riot ID...")
         retrieved = player_repo.get_by_riot_id("TestPlayer#NA1")
         if retrieved and retrieved.puuid == "test_puuid_12345":
-            print("  ✓ Retrieved by Riot ID (GSI working!)")
+            print("  Retrieved by Riot ID (GSI working!)")
         else:
-            print("  ✗ Failed to retrieve by Riot ID")
+            print("  Failed to retrieve by Riot ID")
             return False
 
         # Update player
@@ -82,20 +82,20 @@ def test_player_operations():
         player_repo.update(test_player)
         updated = player_repo.get_by_puuid("test_puuid_12345")
         if updated.winrate == 60.0:
-            print("  ✓ Player updated")
+            print("  Player updated")
         else:
-            print("  ✗ Update failed")
+            print("  Update failed")
             return False
 
         # Clean up
         print("  Cleaning up...")
         player_repo.delete("test_puuid_12345")
-        print("  ✓ Player deleted")
+        print("  Player deleted")
 
         return True
 
     except Exception as e:
-        print(f"  ✗ Player operations failed: {e}")
+        print(f"  Player operations failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -122,36 +122,36 @@ def test_match_operations():
             test_matches.append(match)
             match_repo.save_match(match)
 
-        print(f"  ✓ Created {len(test_matches)} matches")
+        print(f"  Created {len(test_matches)} matches")
 
         # Retrieve matches
         print("  Retrieving matches...")
         retrieved = match_repo.get_player_matches("test_puuid_12345")
         if len(retrieved) == 5:
-            print(f"  ✓ Retrieved {len(retrieved)} matches")
+            print(f"  Retrieved {len(retrieved)} matches")
         else:
-            print(f"  ✗ Expected 5 matches, got {len(retrieved)}")
+            print(f"  Expected 5 matches, got {len(retrieved)}")
             return False
 
         # Get recent matches (sorted by timestamp)
         print("  Getting recent matches...")
         recent = match_repo.get_recent_matches("test_puuid_12345", count=3)
         if len(recent) == 3:
-            print("  ✓ Got 3 most recent matches (LSI working!)")
+            print("  Got 3 most recent matches (LSI working!)")
         else:
-            print(f"  ✗ Expected 3 matches, got {len(recent)}")
+            print(f"  Expected 3 matches, got {len(recent)}")
             return False
 
         # Clean up
         print("  Cleaning up...")
         for match in test_matches:
             match_repo.delete_match("test_puuid_12345", match.match_id)
-        print("  ✓ Matches deleted")
+        print("  Matches deleted")
 
         return True
 
     except Exception as e:
-        print(f"  ✗ Match operations failed: {e}")
+        print(f"  Match operations failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -169,33 +169,33 @@ def test_conversation_operations():
         print("  Creating test conversation...")
         test_conv = Conversation.create_new("test_puuid_12345", session_id="test_session")
         conv_repo.create_conversation(test_conv)
-        print("  ✓ Conversation created")
+        print("  Conversation created")
 
         # Add messages
         print("  Adding messages...")
         test_conv.add_message("user", "Hello coach!")
         test_conv.add_message("assistant", "Hello! How can I help?")
         conv_repo.update_conversation(test_conv)
-        print("  ✓ Messages added")
+        print("  Messages added")
 
         # Retrieve conversation
         print("  Retrieving conversation...")
         retrieved = conv_repo.get_conversation("test_puuid_12345", test_conv.conversation_id)
         if retrieved and len(retrieved.messages) == 2:
-            print(f"  ✓ Retrieved conversation with {len(retrieved.messages)} messages")
+            print(f"  Retrieved conversation with {len(retrieved.messages)} messages")
         else:
-            print("  ✗ Failed to retrieve conversation")
+            print("  Failed to retrieve conversation")
             return False
 
         # Clean up
         print("  Cleaning up...")
         conv_repo.delete_conversation("test_puuid_12345", test_conv.conversation_id)
-        print("  ✓ Conversation deleted")
+        print("  Conversation deleted")
 
         return True
 
     except Exception as e:
-        print(f"  ✗ Conversation operations failed: {e}")
+        print(f"  Conversation operations failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -217,35 +217,35 @@ def test_session_operations():
             expiry_days=7
         )
         session_repo.create_session(test_session)
-        print(f"  ✓ Session created: {test_session.session_token}")
+        print(f"  Session created: {test_session.session_token}")
 
         # Validate session
         print("  Validating session...")
         is_valid = session_repo.is_valid_session(test_session.session_token)
         if is_valid:
-            print("  ✓ Session is valid")
+            print("  Session is valid")
         else:
-            print("  ✗ Session validation failed")
+            print("  Session validation failed")
             return False
 
         # Get PUUID from session
         print("  Getting PUUID from session...")
         puuid = session_repo.get_puuid_from_session(test_session.session_token)
         if puuid == "test_puuid_12345":
-            print("  ✓ Retrieved PUUID from session")
+            print("  Retrieved PUUID from session")
         else:
-            print("  ✗ Failed to get PUUID from session")
+            print("  Failed to get PUUID from session")
             return False
 
         # Clean up
         print("  Cleaning up...")
         session_repo.delete_session(test_session.session_token)
-        print("  ✓ Session deleted")
+        print("  Session deleted")
 
         return True
 
     except Exception as e:
-        print(f"  ✗ Session operations failed: {e}")
+        print(f"  Session operations failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -274,7 +274,7 @@ def main():
     total = len(results)
 
     for test_name, result in results:
-        status = "✓ PASS" if result else "✗ FAIL"
+        status = "PASS" if result else "FAIL"
         print(f"{status} - {test_name}")
 
     print("\n" + "=" * 60)
@@ -282,10 +282,10 @@ def main():
     print("=" * 60)
 
     if passed == total:
-        print("\n🎉 All tests passed! Database is ready to use.")
+        print("\nAll tests passed! Database is ready to use.")
         return 0
     else:
-        print("\n⚠️  Some tests failed. Check errors above.")
+        print("\nSome tests failed. Check errors above.")
         return 1
 
 

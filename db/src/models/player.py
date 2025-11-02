@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from decimal import Decimal
@@ -7,8 +7,8 @@ from decimal import Decimal
 @dataclass
 class RankInfo:
     """Represents player's current rank information"""
-    tier: str  # e.g., "GOLD", "PLATINUM", "DIAMOND"
-    division: str  # e.g., "I", "II", "III", "IV"
+    tier: str
+    division: str
     lp: int  # League Points
 
     def to_dict(self) -> Dict:
@@ -34,9 +34,9 @@ class Player:
     - current_rank
     """
     puuid: str
-    riot_id: str  # Format: "SummonerName#TAG"
-    region: str  # e.g., "na1", "euw1", "kr"
-    main_role: Optional[str] = None  # "TOP", "JUNGLE", "MID", "ADC", "SUPPORT"
+    riot_id: str
+    region: str
+    main_role: Optional[str] = None
     main_champions: Optional[List[str]] = None  # Top 5 champion names or IDs
     winrate: Optional[float] = None  # Overall winrate as percentage (0-100)
     current_rank: Optional[RankInfo] = None
@@ -45,7 +45,7 @@ class Player:
 
     def __post_init__(self):
         """Initialize timestamps if not provided"""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.utcnow().isoformat()
         if self.created_at is None:
             self.created_at = now
         if self.updated_at is None:
@@ -98,4 +98,4 @@ class Player:
 
     def update_timestamp(self):
         """Update the updated_at timestamp"""
-        self.updated_at = datetime.now(timezone.utc).isoformat()
+        self.updated_at = datetime.utcnow().isoformat()

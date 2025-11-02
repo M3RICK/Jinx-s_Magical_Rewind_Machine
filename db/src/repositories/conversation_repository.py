@@ -35,14 +35,15 @@ class ConversationRepository(BaseRepository):
         Returns:
             List of Conversation objects
         """
-        kwargs = {
+        params = {
+            'KeyConditionExpression': Key('puuid').eq(puuid),
             'ScanIndexForward': False  # Sort descending (newest first)
         }
 
         if limit:
-            kwargs['Limit'] = limit
+            params['Limit'] = limit
 
-        items = self.query(Key('puuid').eq(puuid), **kwargs)
+        items = self.query(**params)
         return [Conversation.from_dynamodb_item(item) for item in items]
 
     def get_recent_conversations(self, puuid: str, count: int = 10) -> List[Conversation]:
@@ -130,11 +131,10 @@ class ConversationRepository(BaseRepository):
         Returns:
             List of Conversation objects
         """
-        from boto3.dynamodb.conditions import Attr
-
         items = self.query(
-            Key('puuid').eq(puuid),
-            FilterExpression=Attr('session_id').eq(session_id)
+            KeyConditionExpression=Key('puuid').eq(puuid),
+            FilterExpression='session_id = :sid',
+            ExpressionAttributeValues={':sid': session_id}
         )
         return [Conversation.from_dynamodb_item(item) for item in items]
 

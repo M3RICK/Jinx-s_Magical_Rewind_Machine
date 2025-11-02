@@ -34,7 +34,7 @@ TABLE_CONFIGS = [
         ],
         'attribute_definitions': [
             {'AttributeName': 'puuid', 'AttributeType': 'S'},
-            {'AttributeName': 'match_id', 'AttributeType': 'S'},  # Riot match IDs like "NA1_4567890123"
+            {'AttributeName': 'match_id', 'AttributeType': 'S'},
             {'AttributeName': 'timestamp', 'AttributeType': 'N'}  # Unix timestamp for sorting
         ],
         'local_secondary_indexes': [
@@ -69,6 +69,30 @@ TABLE_CONFIGS = [
         'attribute_definitions': [
             {'AttributeName': 'session_token', 'AttributeType': 'S'}  # UUID format
         ]
+    },
+    {
+        'name': 'MapStories',
+        'description': 'Stores AI-generated stories for map zones per player (Baron, Dragon, lanes, etc.)',
+        'key_schema': [
+            {'AttributeName': 'puuid', 'KeyType': 'HASH'},
+            {'AttributeName': 'zone_id', 'KeyType': 'RANGE'}
+        ],
+        'attribute_definitions': [
+            {'AttributeName': 'puuid', 'AttributeType': 'S'},
+            {'AttributeName': 'zone_id', 'AttributeType': 'S'}
+        ]
+    },
+    {
+        'name': 'PlayerTitles',
+        'description': 'Stores generated player titles based on playstyle and champions',
+        'key_schema': [
+            {'AttributeName': 'puuid', 'KeyType': 'HASH'},
+            {'AttributeName': 'version', 'KeyType': 'RANGE'}
+        ],
+        'attribute_definitions': [
+            {'AttributeName': 'puuid', 'AttributeType': 'S'},
+            {'AttributeName': 'version', 'AttributeType': 'S'}
+        ]
     }
 ]
 
@@ -81,7 +105,7 @@ def create_table(table_config):
     try:
         existing_table = dynamodb.Table(table_name)
         existing_table.load()
-        print(f"✓ Table '{table_name}' already exists. Skipping creation.")
+        print(f"Table '{table_name}' already exists. Skipping creation.")
         return existing_table
 
     except ClientError as e:
@@ -136,7 +160,7 @@ def create_table(table_config):
 
         print(f"Waiting for table '{table_name}' to be ready...")
         table.wait_until_exists()
-        print(f"✓ Table '{table_name}' created successfully!")
+        print(f"Table '{table_name}' created successfully!")
         return table
 
     except ClientError as e:
