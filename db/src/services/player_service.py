@@ -164,59 +164,6 @@ class PlayerService:
 
         return self.player_repo.update(player)
 
-    def sync_player_matches(self, puuid: str, match_count: int = 20) -> Tuple[int, str]:
-        """
-        Sync player's match history from Riot API to database.
-
-        Args:
-            puuid: Player's unique identifier
-            match_count: Number of recent matches to sync (default: 20)
-
-        Returns:
-            Tuple of (number of new matches synced, status message)
-        """
-        try:
-            # Import here to avoid circular dependencies
-            from API.league.match import get_match_history, get_match_details
-            from db.src.models.match_history import MatchHistory
-
-            player = self.player_repo.get_by_puuid(puuid)
-            if not player:
-                return 0, "Player not found"
-
-            # Get match IDs from Riot API
-            match_ids = get_match_history(puuid, player.region, count=match_count)
-
-            if not match_ids:
-                return 0, "No matches found"
-
-            new_matches = 0
-            for match_id in match_ids:
-                # Check if match already exists
-                if self.match_repo.match_exists(puuid, match_id):
-                    continue
-
-                # Fetch match details
-                match_data = get_match_details(match_id, player.region)
-                if not match_data:
-                    continue
-
-                # Create MatchHistory object
-                match_history = MatchHistory.from_riot_match(puuid, match_id, match_data)
-
-                # Save to database
-                self.match_repo.save_match(match_history)
-                new_matches += 1
-
-            # Clean up old matches if we have more than match_count
-            self.match_repo.delete_old_matches(puuid, keep_count=match_count)
-
-            return new_matches, f"Synced {new_matches} new matches"
-
-        except Exception as e:
-            print(f"Error syncing matches: {e}")
-            return 0, f"Error: {str(e)}"
-
     def get_player_overview(self, puuid: str) -> Optional[dict]:
         """
         Get complete player overview (profile + recent matches).
