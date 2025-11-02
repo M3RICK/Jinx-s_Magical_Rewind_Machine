@@ -9,7 +9,7 @@ load_dotenv()
 
 class PUUIDEncryption:
     def __init__(self):
-        encryption_key = os.getenv('PUUID_ENCRYPTION_KEY')
+        encryption_key = os.getenv("PUUID_ENCRYPTION_KEY")
 
         if not encryption_key:
             raise ValueError(
@@ -43,7 +43,7 @@ class PUUIDEncryption:
     @staticmethod
     def hash_puuid(puuid: str) -> str:
         if not puuid:
-            raise ValueError("PUUID cannot be empty")
+            raise ValueError("PUUID cannot be empty...duh")
         return hashlib.sha256(puuid.encode()).hexdigest()
 
 

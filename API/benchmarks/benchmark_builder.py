@@ -49,7 +49,7 @@ class BenchmarkBuilder:
             players = await self.get_players_from_rank(rank, platform, limit=20)
 
             if not players:
-                print(f"  ⚠ No players found for {rank}, skipping...")
+                print(f"  No players found for {rank}, skipping...")
                 continue
 
             print(f"  Found {len(players)} {rank} players")
@@ -129,7 +129,7 @@ class BenchmarkBuilder:
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(cache_data, f, indent=2, ensure_ascii=False)
 
-        print(f"\n✓ Benchmarks saved to {output_file}")
+        print(f"\nBenchmarks saved to {output_file}")
         print(f"  Generated at: {cache_data['generated_at']}")
 
         return benchmarks
