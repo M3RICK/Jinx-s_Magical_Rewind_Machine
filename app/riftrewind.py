@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import sys
 import os
+import asyncio
 
-# Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cli.chat_chain import run_chat
+from cli.chat import run_chat
 from cli.sync import run_sync
 
 VERSION = "1.0.0"
@@ -42,14 +42,13 @@ def main():
             command = parts[0].lower()  # Normalize command to lowercase
             args = parts[1:] if len(parts) > 1 else []
 
-            # Route commands using match/case
             match command:
                 case "help":
                     print_help()
                 case "version":
                     print(f"RiftRewind CLI v{VERSION}")
                 case "chat":
-                    run_chat()
+                    asyncio.run(run_chat())
                 case "sync":
                     run_sync()
                 case "exit" | "quit" | "q" | "bye" | "kill":

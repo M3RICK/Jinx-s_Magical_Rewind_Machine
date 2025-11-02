@@ -63,7 +63,6 @@ def chat_loop():
     print("Connecting to AWS Bedrock...")
     chat = create_chat()
     print("Connected! Start chatting:\n")
-    # Our "memory" is just a list of messages
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
 
     while True:

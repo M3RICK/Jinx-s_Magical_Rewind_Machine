@@ -209,7 +209,7 @@ def populate_runes(conn, runes_data):
     tree_count = 0
 
     for tree in runes_data:
-        tree_name = tree.get('key', '')  # "Precision", "Domination", etc.
+        tree_name = tree.get('key', '')
         tree_id = tree.get('id', 0)
 
         # Insert rune tree
