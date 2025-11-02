@@ -3,7 +3,6 @@ from API.models.player import Player
 
 
 async def main():
-    #    async with Player("theoppstopper", "bigra", platform="euw1") as player:
     async with Player("sad and bad", "2093", platform="euw1") as player:
         await player.load_profile()
 

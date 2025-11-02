@@ -8,6 +8,7 @@ numpy==2.3.4
 
 # Utilities
 python-dotenv==1.2.1
+cryptography
 
 blinker==1.9.0
 boto3==1.40.53
