@@ -10,7 +10,8 @@ Run this after creating the database with init_league_db.py
 """
 
 import sqlite3
-import requests
+import aiohttp
+import asyncio
 import json
 import os
 
@@ -21,35 +22,39 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'league_data.db')
 LATEST_VERSION_URL = "https://ddragon.leagueoflegends.com/api/versions.json"
 BASE_URL = "https://ddragon.leagueoflegends.com/cdn"
 
-def get_latest_patch():
+async def get_latest_patch():
     """Get the latest patch version from Riot."""
-    response = requests.get(LATEST_VERSION_URL)
-    versions = response.json()
-    return versions[0]  # Most recent version
+    async with aiohttp.ClientSession() as session:
+        async with session.get(LATEST_VERSION_URL) as response:
+            versions = await response.json()
+            return versions[0]  # Most recent version
 
-def fetch_items(patch):
+async def fetch_items(patch):
     """Fetch all items from Data Dragon."""
     url = f"{BASE_URL}/{patch}/data/en_US/item.json"
-    response = requests.get(url)
-    return response.json()
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            return await response.json()
 
-def fetch_champions(patch):
+async def fetch_champions(patch):
     """Fetch all champions from Data Dragon."""
     url = f"{BASE_URL}/{patch}/data/en_US/champion.json"
-    response = requests.get(url)
-    return response.json()
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            return await response.json()
 
-def fetch_champion_detail(champion_id, patch):
+async def fetch_champion_detail(champion_id, patch, session):
     """Fetch detailed info for a specific champion."""
     url = f"{BASE_URL}/{patch}/data/en_US/champion/{champion_id}.json"
-    response = requests.get(url)
-    return response.json()
+    async with session.get(url) as response:
+        return await response.json()
 
-def fetch_runes(patch):
+async def fetch_runes(patch):
     """Fetch all runes from Data Dragon."""
     url = f"{BASE_URL}/{patch}/data/en_US/runesReforged.json"
-    response = requests.get(url)
-    return response.json()
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            return await response.json()
 
 def populate_items(conn, items_data, patch):
     """Insert items into database."""
@@ -126,16 +131,26 @@ def populate_items(conn, items_data, patch):
 
     conn.commit()
 
-def populate_champions(conn, champions_data, patch):
+async def populate_champions(conn, champions_data, patch):
     """Insert champions into database."""
     cursor = conn.cursor()
 
     champions = champions_data.get('data', {})
 
+    # Fetch all champion details concurrently for speed
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch_champion_detail(champ_id, patch, session) for champ_id in champions.keys()]
+        champion_details = await asyncio.gather(*tasks)
+
+    # Create a mapping of champion_id to detailed data
+    details_map = {}
+    for detail in champion_details:
+        for champ_id, champ_detail in detail['data'].items():
+            details_map[champ_id] = champ_detail
+
+    # Insert each champion into database
     for champ_id, champ in champions.items():
-        # Fetch detailed info
-        detail = fetch_champion_detail(champ_id, patch)
-        champ_detail = detail['data'][champ_id]
+        champ_detail = details_map[champ_id]
 
         # Stats
         stats = champ_detail.get('stats', {})
@@ -248,30 +263,41 @@ def populate_runes(conn, runes_data):
 
     conn.commit()
 
-def main():
+async def main():
     """Main function to populate all data."""
     if not os.path.exists(DB_PATH):
+        print(f"Database not found at {DB_PATH}")
         return
 
-    patch = get_latest_patch()
+    patch = await get_latest_patch()
+    print(f"Populating database with patch {patch} data...")
     conn = sqlite3.connect(DB_PATH)
 
     try:
-        items_data = fetch_items(patch)
+        print("Fetching items...")
+        items_data = await fetch_items(patch)
         populate_items(conn, items_data, patch)
+        print("✓ Items populated")
 
-        champions_data = fetch_champions(patch)
-        populate_champions(conn, champions_data, patch)
+        print("Fetching champions...")
+        champions_data = await fetch_champions(patch)
+        await populate_champions(conn, champions_data, patch)
+        print("✓ Champions populated")
 
-        runes_data = fetch_runes(patch)
+        print("Fetching runes...")
+        runes_data = await fetch_runes(patch)
         populate_runes(conn, runes_data)
+        print("✓ Runes populated")
+
+        print("Database population complete!")
 
     except Exception as e:
         import traceback
+        print("Error populating database:")
         traceback.print_exc()
 
     finally:
         conn.close()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
