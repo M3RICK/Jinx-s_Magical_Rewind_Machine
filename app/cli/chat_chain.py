@@ -145,7 +145,7 @@ def validate_and_authenticate_player(riot_id, platform):
         puuid = get_puuid_from_riot(riot_id, riot_region)
 
         if not puuid:
-            print(f"[ERROR] Riot account '{riot_id}' not found in region '{region}'")
+            print(f"[ERROR] Riot account '{riot_id}' not found in region '{platform}'")
             print("[TIP] Make sure you're using the correct region")
             return None, None
 
