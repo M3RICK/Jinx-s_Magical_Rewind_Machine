@@ -10,22 +10,37 @@ SRC_FOLDER = '/app/frontend/src'
 
 @app.route('/')
 def index():
+    """ 
+    Index route 
+    """
     return send_from_directory(PUBLIC_FOLDER, 'index.html')
 
 @app.route('/map')
 def map_view():
+    """ 
+    Test for frontend display map 
+    """
     return send_from_directory(PUBLIC_FOLDER, 'map.html')
 
 @app.route('/<path:filename>')
 def public_files(filename):
+    """
+    Public html files
+    """
     return send_from_directory(PUBLIC_FOLDER, filename)
 
 @app.route('/src/<path:filename>')
 def src_files(filename):
+    """ 
+    js content and animations
+    """
     return send_from_directory(SRC_FOLDER, filename)
 
 @app.route("/assets/<path:filename>")
-def serve_models(filename):
+def assets_files(filename):
+    """ 
+    Assets content and animations
+    """
     models_dir = os.path.join(os.getcwd(), "frontend", "assets")
     file_path = os.path.join(models_dir, filename)
     directory = os.path.dirname(file_path)
@@ -34,6 +49,9 @@ def serve_models(filename):
 
 @app.route('/api/rewind', methods=['POST'])
 def rewind():
+    """
+    Notification after index login
+    """
     data = request.get_json()
     username = data.get('username')
     hashtag = data.get('hashtag')
