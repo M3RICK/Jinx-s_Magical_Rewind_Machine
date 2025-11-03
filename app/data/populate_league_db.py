@@ -277,17 +277,17 @@ async def main():
         print("Fetching items...")
         items_data = await fetch_items(patch)
         populate_items(conn, items_data, patch)
-        print("✓ Items populated")
+        print("Items populated")
 
         print("Fetching champions...")
         champions_data = await fetch_champions(patch)
         await populate_champions(conn, champions_data, patch)
-        print("✓ Champions populated")
+        print("Champions populated")
 
         print("Fetching runes...")
         runes_data = await fetch_runes(patch)
         populate_runes(conn, runes_data)
-        print("✓ Runes populated")
+        print("Runes populated")
 
         print("Database population complete!")
 
