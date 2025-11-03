@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import asyncio
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,7 +52,7 @@ def main():
                 case "chat":
                     run_chat()
                 case "sync":
-                    run_sync()
+                    asyncio.run(run_sync())
                 case "exit" | "quit" | "q" | "bye" | "kill":
                     print("\nGoodbye!")
                     break
