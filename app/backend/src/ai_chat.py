@@ -1,8 +1,12 @@
 import os
 import time
+import json
 from dotenv import load_dotenv
 from langchain_aws import ChatBedrock
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+
+# Import our League of Legends tools
+from league_tools import TOOL_DEFINITIONS, execute_tool
 
 # TODO: RAG Implementation
 # 1. Add vector DB client (AWS OpenSearch / FAISS)
@@ -27,11 +31,23 @@ SECONDARY FUNCTION - Website Assistant:
 - Help users navigate the RiftRewind website
 - Answer questions about features and functionality
 
+TOOLS AVAILABLE:
+You have access to a League of Legends database with:
+- Champion stats, abilities, and full details (FULLY IMPLEMENTED)
+- All items and their stats (FULLY IMPLEMENTED)
+- Rune details and trees (FULLY IMPLEMENTED)
+- Recommended builds - items + runes for champion/role (NOT YET FULLY IMPLEMENTED - data may be incomplete)
+- Champion counters and matchup info (NOT YET FULLY IMPLEMENTED - data may be incomplete)
+
+When asked about builds or counters, you can try using the tools, but if the data is missing or incomplete,
+provide your best general advice based on champion/item knowledge and mention the feature is still being built.
+
 CORE PRINCIPLES:
 1. Keep answers short and precise - go straight to the point
 2. Only help when asked - don't force advice on anyone
 3. You are allowed to contradict a player if they're being counterproductive about improvement
 4. Remember: You help players get better, not feel better
+5. Use your tools to provide accurate, data-backed advice
 
 OFF-TOPIC QUESTIONS:
 If someone asks about topics unrelated to League of Legends or the website, respond with:
@@ -58,7 +74,9 @@ def create_chat():
             "max_tokens": 4092
         }
     )
-    return chat
+    # Bind the League of Legends tools to the chat model
+    chat_with_tools = chat.bind(tools=TOOL_DEFINITIONS)
+    return chat_with_tools
 
 def chat_loop():
     print("Rift Rewind AI Chat")
@@ -89,24 +107,59 @@ def chat_loop():
             # 2. Search vector DB for similar past conversations/coaching tips
             # 3. Inject top-k relevant contexts into messages (as SystemMessage or HumanMessage)
 
-            # Get AI response with retry logic
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    response = chat.invoke(messages)
-                    break
-                except Exception as retry_error:
-                    if "Too many connections" in str(retry_error) and attempt < max_retries - 1:
-                        wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                        print(f"\nRate limited. Waiting {wait_time}s before retry...")
-                        time.sleep(wait_time)
-                    else:
-                        raise
+            # Tool use loop - continue until we get a final response
+            while True:
+                # Get AI response with retry logic
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        response = chat.invoke(messages)
+                        break
+                    except Exception as retry_error:
+                        error_str = str(retry_error)
+                        # Check for rate limiting / throttling errors
+                        is_rate_limit = any(keyword in error_str for keyword in [
+                            "Too many requests",
+                            "Too many connections",
+                            "ThrottlingException",
+                            "throttling"
+                        ])
+                        if is_rate_limit and attempt < max_retries - 1:
+                            wait_time = (2 ** attempt) * 2
+                            print(f"\nRate limited. Waiting {wait_time}s before retry...")
+                            time.sleep(wait_time)
+                        else:
+                            raise
 
-            # Add AI response to history
-            messages.append(AIMessage(content=response.content))
-            # Print response
-            print(f"\nAI: {response.content}\n")
+                # Add AI response to history
+                messages.append(response)
+
+                # Check if Claude wants to use tools
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    # Claude is requesting tool use
+                    num_tools = len(response.tool_calls)
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call['name']
+                        tool_input = tool_call['args']
+                        tool_use_id = tool_call['id']
+                        print(f"[Tool Use: {tool_name}({json.dumps(tool_input)})]")
+                        # Execute the tool
+                        tool_result = execute_tool(tool_name, tool_input)
+                        # Add tool result to messages
+                        messages.append(ToolMessage(
+                            content=json.dumps(tool_result, indent=2),
+                            tool_call_id=tool_use_id
+                        ))
+                    # If Claude used many tools, add a small delay to avoid rate limiting
+                    if num_tools > 3:
+                        print(f"[Executed {num_tools} tools, brief pause to avoid rate limits...]")
+                        time.sleep(1)
+                    # Continue loop to get Claude's response after using tools
+                    continue
+                else:
+                    # No more tool calls send response
+                    print(f"\nAI: {response.content}\n")
+                    break
 
         except Exception as e:
             print(f"\nError: {e}\n")
