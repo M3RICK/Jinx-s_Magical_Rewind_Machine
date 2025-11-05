@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jinx's Magical Rewind Machine</title>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+
+    <style>
+        /* ============================================
+           BASE STYLES
+           ============================================ */
+        body {
+            font-family: "Inter", sans-serif;
+            /* Layered background: custom Jinx hideout image + gradient overlay */
+            background:
+                linear-gradient(135deg, rgba(5, 8, 22, 0.85) 0%, rgba(10, 14, 39, 0.9) 50%, rgba(26, 31, 58, 0.85) 100%),
+                url('assets/images/thibaud-delaperche-jinx-hideout-01.jpg') center/cover no-repeat fixed;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Fallback: If image doesn't load, use solid gradient */
+        @supports not (background-blend-mode: overlay) {
+            body {
+                background: linear-gradient(135deg, #050816 0%, #0a0e27 50%, #1a1f3a 100%);
+            }
+        }
+
+        /* ============================================
+           BACKGROUND EFFECTS
+           ============================================ */
+
+        /* Small white dots that float around the background */
+        .particle {
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        /* Hexagon shapes that rotate and float (Jinx chaos theme) */
+        .chaos-hex {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            border: 2px solid rgba(255, 20, 147, 0.2);
+            pointer-events: none;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        }
+
+        /* Quick lightning flash effect */
+        .lightning {
+            position: fixed;
+            width: 2px;
+            height: 100px;
+            background: linear-gradient(to bottom, rgba(0, 212, 255, 0.8), transparent);
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        /* Jinx's Monkey Bombs - chaotic bouncing bombs */
+        .monkey-bomb {
+            position: fixed;
+            width: 80px;
+            height: 80px;
+            background: url('assets/icons/image-removebg-preview.png') center/contain no-repeat;
+            pointer-events: none;
+            filter: drop-shadow(0 0 15px rgba(255, 20, 147, 0.6));
+            z-index: 5;
+        }
+
+        /* ============================================
+           TEXT & BUTTON EFFECTS
+           ============================================ */
+
+        /* Hanging sign image with animation */
+        .hanging-sign {
+            max-width: 500px;
+            width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.7));
+            transform-origin: top center;
+            animation: signDrop 5s cubic-bezier(0.68, -0.55, 0.265, 1.55) 2s forwards;
+        }
+
+        /* Animation: Realistic sign falling with pendulum physics - NO Y-axis movement */
+        @keyframes signDrop {
+            0%, 15% {
+                transform: rotate(0deg);
+                transform-origin: top center;
+            }
+            /* Pivot shifts to top left corner instantly */
+            20% {
+                transform: rotate(0deg);
+                transform-origin: top left;
+            }
+            /* Fast drop to vertical with momentum */
+            35% {
+                transform: rotate(95deg);
+                transform-origin: top left;
+            }
+            /* Swings back with force */
+            45% {
+                transform: rotate(70deg);
+                transform-origin: top left;
+            }
+            /* Swings forward again */
+            55% {
+                transform: rotate(98deg);
+                transform-origin: top left;
+            }
+            /* Smaller swing back */
+            65% {
+                transform: rotate(80deg);
+                transform-origin: top left;
+            }
+            /* Smaller swing forward */
+            73% {
+                transform: rotate(94deg);
+                transform-origin: top left;
+            }
+            /* Tiny swing back */
+            80% {
+                transform: rotate(87deg);
+                transform-origin: top left;
+            }
+            /* Final tiny swing */
+            87% {
+                transform: rotate(91deg);
+                transform-origin: top left;
+            }
+            /* Settles perfectly vertical and STAYS */
+            94%, 100% {
+                transform: rotate(90deg);
+                transform-origin: top left;
+            }
+        }
+
+        /* Makes text glow with pink and blue colors */
+        .glow-text {
+            text-shadow: 0 0 20px rgba(255, 20, 147, 0.8), 0 0 40px rgba(255, 20, 147, 0.5), 0 0 60px rgba(0, 212, 255, 0.3);
+        }
+
+        /* Animated pulsing glow for the main button */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 20, 147, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(255, 20, 147, 1), 0 0 60px rgba(0, 212, 255, 0.6); }
+        }
+
+        .btn-pulse {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        /* ============================================
+           MODE SELECTOR STYLES
+           ============================================ */
+
+        /* Mode card - becomes active when radio is checked */
+        .mode-radio:checked + .mode-card {
+            border-width: 3px;
+            transform: scale(1.05);
+            box-shadow: 0 0 30px currentColor;
+        }
+
+        /* Coach mode (blue) glow when selected */
+        .mode-option:has(input[value="coach"]:checked) .mode-card {
+            border-color: rgba(59, 130, 246, 1);
+            background: rgba(59, 130, 246, 0.15);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
+        }
+
+        /* Roast mode (pink) glow when selected */
+        .mode-option:has(input[value="roast"]:checked) .mode-card {
+            border-color: rgba(255, 20, 147, 1);
+            background: rgba(255, 20, 147, 0.15);
+            box-shadow: 0 0 30px rgba(255, 20, 147, 0.6);
+        }
+
+        /* Smooth transitions for mode cards */
+        .mode-card {
+            transition: all 0.3s ease;
+        }
+
+        /* ============================================
+           VI'S BUTTON STYLES - Powerful & Direct
+           ============================================ */
+
+        .vi-button {
+            position: relative;
+            overflow: hidden;
+            background-size: 200% 200%;
+            animation: vi-pulse 3s ease-in-out infinite;
+        }
+
+        .vi-button:hover {
+            animation: vi-punch 0.3s ease-out;
+            box-shadow: 0 0 40px rgba(255, 165, 0, 0.8), 0 0 60px rgba(255, 69, 0, 0.6) !important;
+        }
+
+        /* Powerful pulsing effect for Vi */
+        @keyframes vi-pulse {
+            0%, 100% {
+                background-position: 0% 50%;
+                box-shadow: 0 4px 15px rgba(255, 69, 0, 0.4);
+            }
+            50% {
+                background-position: 100% 50%;
+                box-shadow: 0 4px 25px rgba(255, 165, 0, 0.6);
+            }
+        }
+
+        /* Punch impact effect on hover */
+        @keyframes vi-punch {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1.1); }
+        }
+
+        /* ============================================
+           LOADING & EXPLOSION EFFECTS
+           ============================================ */
+
+        /* Loading spinner animation */
+        .spinner {
+            border: 4px solid rgba(255, 20, 147, 0.3);
+            border-top: 4px solid #ff1493;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Colorful particles that explode on page transition */
+        .explosion-particle {
+            position: fixed;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+
+<body class="text-white flex items-center justify-center min-h-screen">
+    <!-- ==========================================
+         BACKGROUND CONTAINER
+         Holds all animated particles, hexagons, and lightning
+         ========================================== -->
+    <div id="particles-container"></div>
+
+    <!-- ==========================================
+         MAIN CONTENT AREA
+         ========================================== -->
+    <div class="relative z-10 max-w-2xl w-full px-6">
+
+        <!-- ==========================================
+             PAGE TITLE
+             Hanging sign with animation
+             ========================================== -->
+        <div class="text-center mb-12">
+            <img
+                src="assets/icons/sign.png"
+                alt="Jinx's Magical Rewind Machine"
+                class="hanging-sign"
+            />
+            <p class="text-gray-400 text-sm mt-6">⚡ Relive your chaos on the Rift ⚡</p>
+        </div>
+
+        <!-- ==========================================
+             USER INPUT FORM
+             Three fields: Summoner Name, Tag, Region
+             ========================================== -->
+        <form id="rewindForm" class="space-y-6">
+
+            <!-- Input fields: All in one horizontal line -->
+            <div class="flex gap-4 items-center justify-center">
+                <!-- Summoner Name (e.g., "TheOppStopper") -->
+                <input
+                    id="gameName"
+                    type="text"
+                    placeholder="Summoner Name"
+                    required
+                    class="p-3 rounded-lg bg-black/60 backdrop-blur-md text-white border-2 border-pink-500/60 focus:border-pink-500 focus:bg-black/80 focus:outline-none font-semibold placeholder-gray-400 transition-colors"
+                    style="width: 220px"
+                />
+                <!-- Tag Line (e.g., "#BIGRA") -->
+                <input
+                    id="tagLine"
+                    type="text"
+                    placeholder="#TAG"
+                    required
+                    class="p-3 rounded-lg bg-black/60 backdrop-blur-md text-white border-2 border-pink-500/60 focus:border-pink-500 focus:bg-black/80 focus:outline-none font-semibold placeholder-gray-400 transition-colors"
+                    style="width: 110px"
+                />
+                <!-- Region/Platform Selector -->
+                <select
+                    id="platform"
+                    class="p-3 rounded-lg bg-black/60 backdrop-blur-md text-white border-2 border-pink-500/60 focus:border-pink-500 focus:bg-black/80 focus:outline-none font-semibold transition-colors"
+                    style="width: 160px"
+                >
+                    <option value="euw1" class="bg-gray-900">EUW</option>
+                    <option value="eun1" class="bg-gray-900">EUNE</option>
+                    <option value="na1" class="bg-gray-900">NA</option>
+                    <option value="kr" class="bg-gray-900">KR</option>
+                    <option value="br1" class="bg-gray-900">BR</option>
+                    <option value="la1" class="bg-gray-900">LAN</option>
+                    <option value="la2" class="bg-gray-900">LAS</option>
+                    <option value="oc1" class="bg-gray-900">OCE</option>
+                </select>
+            </div>
+
+            <!-- Story Mode Selector -->
+            <div class="mb-6">
+                <p class="text-center text-gray-400 text-sm mb-3">Choose your vibe:</p>
+                <div class="flex gap-4 justify-center">
+                    <!-- Coach Mode -->
+                    <label class="mode-option cursor-pointer">
+                        <input type="radio" name="storyMode" value="coach" checked class="hidden mode-radio" />
+                        <div class="mode-card bg-black/60 backdrop-blur-md border-2 border-blue-500/60 rounded-lg p-4 transition-all hover:border-blue-500 hover:bg-black/80" style="width: 220px">
+                            <div class="text-4xl text-center mb-2">🎓</div>
+                            <h3 class="text-lg font-bold text-center text-blue-400 mb-1">Coach Mode</h3>
+                            <p class="text-xs text-gray-400 text-center">Helpful insights & tips to improve</p>
+                        </div>
+                    </label>
+
+                    <!-- Roast Mode -->
+                    <label class="mode-option cursor-pointer">
+                        <input type="radio" name="storyMode" value="roast" class="hidden mode-radio" />
+                        <div class="mode-card bg-black/60 backdrop-blur-md border-2 border-pink-500/60 rounded-lg p-4 transition-all hover:border-pink-500 hover:bg-black/80" style="width: 220px">
+                            <div class="text-4xl text-center mb-2">🔥</div>
+                            <h3 class="text-lg font-bold text-center text-pink-400 mb-1">Roast Mode</h3>
+                            <p class="text-xs text-gray-400 text-center">Brutal honesty & savage humor</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Submit Button with pulsing animation -->
+            <div class="flex justify-center">
+                <button
+                    type="submit"
+                    id="submitBtn"
+                    class="px-12 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-black rounded-full hover:from-purple-600 hover:to-blue-500 transition-all duration-300 transform hover:scale-110 btn-pulse text-lg"
+                    style="font-family: 'Cinzel', serif"
+                >
+                    💥 IGNITE THE REWIND 💥
+                </button>
+            </div>
+        </form>
+
+        <!-- ==========================================
+             VI'S COACHING SESSION - Alternative path
+             ========================================== -->
+        <div class="mt-8 text-center">
+            <p class="text-gray-500 text-sm italic mb-3">
+                Or... skip the chaos and go straight to business with Vi
+            </p>
+            <button
+                onclick="goToCoachingSession()"
+                class="px-10 py-4 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 text-white font-black rounded-lg hover:from-orange-500 hover:via-red-600 hover:to-orange-500 transition-all duration-300 transform hover:scale-110 border-3 border-orange-400 shadow-lg hover:shadow-orange-500/50 vi-button"
+                style="font-family: 'Cinzel', serif; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"
+            >
+                👊 VI'S DIRECT COACHING 👊
+            </button>
+        </div>
+
+        <!-- ==========================================
+             LOADING STATE
+             Shows spinner while API processes data
+             Hidden by default, shown during API call
+             ========================================== -->
+        <div id="loadingState" class="hidden mt-8 text-center">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-pink-400 font-semibold text-lg">Analyzing your chaos...</p>
+            <p class="text-gray-400 text-sm mt-2">This may take 10-20 seconds</p>
+        </div>
+
+        <!-- ==========================================
+             STATUS MESSAGE
+             Shows success/error messages
+             Hidden by default, populated dynamically
+             ========================================== -->
+        <div id="statusMsg" class="hidden mt-6 p-4 rounded-lg text-sm font-semibold text-center"></div>
+
+        <!-- ==========================================
+             FOOTER
+             ========================================== -->
+        <p class="text-xs text-gray-500 mt-10 text-center">
+            Not affiliated with Riot Games • Built with ❤️ for Rift Rewind Hackathon
+        </p>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const API_URL = "http://localhost:5000";
+        const THEME_COLORS = {
+            pink: "#FF1493",
+            blue: "#00D4FF",
+            purple: "#9B30FF",
+            white: "#FFFFFF",
+            lightPink: "#FF6B9D",
+            lightBlue: "#33E6FF"
+        };
+
+        // ============================================
+        // BACKGROUND EFFECTS - Creates animated elements
+        // ============================================
+
+        // Main function: Creates all background visual effects
+        function createBackgroundParticles() {
+            const container = document.getElementById("particles-container");
+
+            createFloatingParticles(container);
+            createChaosHexagons(container);
+            startLightningFlashes(container);
+            createMonkeyBombs(container);
+        }
+
+        // Creates small white dots that float around
+        function createFloatingParticles(container) {
+            const particleCount = 40; // Reduced from 80 for performance
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = createParticleElement();
+                container.appendChild(particle);
+                animateParticle(particle);
+            }
+        }
+
+        // Helper: Creates a single particle DOM element
+        function createParticleElement() {
+            const particle = document.createElement("div");
+            particle.className = "particle";
+            particle.style.left = `${Math.random() * 100}%`;
+            particle.style.top = `${Math.random() * 100}%`;
+            return particle;
+        }
+
+        // Helper: Animates a single particle with random movement
+        function animateParticle(particle) {
+            gsap.to(particle, {
+                y: `+=${Math.random() * 100 - 50}`,
+                x: `+=${Math.random() * 100 - 50}`,
+                opacity: Math.random() * 0.5 + 0.2,
+                duration: Math.random() * 3 + 2,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut",
+            });
+        }
+
+        // Creates rotating hexagon shapes (Jinx chaos theme)
+        function createChaosHexagons(container) {
+            const hexagonCount = 8; // Reduced from 15 for performance
+
+            for (let i = 0; i < hexagonCount; i++) {
+                const hexagon = createHexagonElement();
+                container.appendChild(hexagon);
+                animateHexagon(hexagon);
+            }
+        }
+
+        // Helper: Creates a single hexagon DOM element
+        function createHexagonElement() {
+            const hexagon = document.createElement("div");
+            hexagon.className = "chaos-hex";
+            hexagon.style.left = `${Math.random() * 100}%`;
+            hexagon.style.top = `${Math.random() * 100}%`;
+            hexagon.style.borderColor = getRandomHexagonColor();
+            return hexagon;
+        }
+
+        // Helper: Picks random color for hexagon (pink or blue)
+        function getRandomHexagonColor() {
+            return Math.random() > 0.5
+                ? "rgba(255, 20, 147, 0.2)"  // Pink
+                : "rgba(0, 212, 255, 0.2)";  // Blue
+        }
+
+        // Helper: Animates a hexagon with rotation and movement
+        function animateHexagon(hexagon) {
+            gsap.to(hexagon, {
+                rotation: Math.random() * 720 - 360,
+                scale: Math.random() * 1.5 + 0.5,
+                x: `+=${Math.random() * 200 - 100}`,
+                y: `+=${Math.random() * 200 - 100}`,
+                duration: Math.random() * 10 + 5,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut",
+            });
+        }
+
+        // Starts random lightning flash effects
+        function startLightningFlashes(container) {
+            const flashInterval = 2000; // Check every 2 seconds
+
+            setInterval(() => {
+                const shouldFlash = Math.random() > 0.7; // 30% chance
+                if (shouldFlash) {
+                    createLightningFlash(container);
+                }
+            }, flashInterval);
+        }
+
+        // Helper: Creates and animates a single lightning flash
+        function createLightningFlash(container) {
+            const lightning = createLightningElement();
+            container.appendChild(lightning);
+            animateLightningFlash(lightning);
+        }
+
+        // Helper: Creates a lightning DOM element
+        function createLightningElement() {
+            const lightning = document.createElement("div");
+            lightning.className = "lightning";
+            lightning.style.left = `${Math.random() * 100}%`;
+            lightning.style.top = `${Math.random() * 50}%`;
+            return lightning;
+        }
+
+        // Helper: Animates lightning flash (quick flicker effect)
+        function animateLightningFlash(lightning) {
+            gsap.timeline()
+                .to(lightning, { opacity: 0.8, duration: 0.05 })
+                .to(lightning, { opacity: 0, duration: 0.1 })
+                .to(lightning, { opacity: 0.6, duration: 0.05 })
+                .to(lightning, { opacity: 0, duration: 0.2, onComplete: () => lightning.remove() });
+        }
+
+        // ============================================
+        // MONKEY BOMB EFFECTS - Jinx's chaotic bombs
+        // ============================================
+
+        // Creates bouncing monkey bombs across the screen
+        function createMonkeyBombs(container) {
+            const bombCount = 5; // Reduced from 8 for performance
+
+            for (let i = 0; i < bombCount; i++) {
+                const bomb = createMonkeyBombElement();
+                container.appendChild(bomb);
+                animateMonkeyBomb(bomb);
+            }
+        }
+
+        // Helper: Creates a single monkey bomb DOM element
+        function createMonkeyBombElement() {
+            const bomb = document.createElement("div");
+            bomb.className = "monkey-bomb";
+            bomb.style.left = `${Math.random() * 100}%`;
+            bomb.style.top = `${Math.random() * 100}%`;
+            return bomb;
+        }
+
+        // Helper: Animates bomb with chaotic bouncing motion
+        function animateMonkeyBomb(bomb) {
+            // Random starting direction
+            const startX = Math.random() * 100;
+            const startY = Math.random() * 100;
+
+            // Create continuous bouncing animation
+            const bounceDuration = Math.random() * 3 + 2; // 2-5 seconds
+            const bounceDistance = Math.random() * 300 + 200; // 200-500px
+
+            gsap.to(bomb, {
+                x: `+=${Math.random() * bounceDistance * 2 - bounceDistance}`,
+                y: `+=${Math.random() * bounceDistance * 2 - bounceDistance}`,
+                rotation: Math.random() * 720 - 360, // Spin while bouncing
+                scale: Math.random() * 0.5 + 0.7, // Pulse size
+                duration: bounceDuration,
+                repeat: -1,
+                yoyo: true,
+                ease: "power1.inOut",
+            });
+
+            // Add wobble effect (separate animation)
+            gsap.to(bomb, {
+                rotation: "+=360",
+                duration: Math.random() * 2 + 1,
+                repeat: -1,
+                ease: "none",
+            });
+
+            // Occasional "bounce" effect (vertical only)
+            gsap.to(bomb, {
+                y: `-=${Math.random() * 100 + 50}`,
+                duration: 0.6,
+                repeat: -1,
+                yoyo: true,
+                ease: "bounce.out",
+                delay: Math.random() * 2,
+            });
+        }
+
+        // ============================================
+        // FORM HANDLING - User input and API calls
+        // ============================================
+
+        // Main: Handles form submission when user clicks button
+        document.getElementById("rewindForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const userInput = getUserFormData();
+            const elements = getFormElements();
+
+            showLoadingState(elements);
+
+            try {
+                console.log("📡 Calling API:", userInput.gameName, userInput.tagLine, userInput.platform);
+
+                const playerData = await fetchPlayerAnalysis(userInput);
+
+                savePlayerDataToStorage(playerData, userInput);
+                showSuccessMessage(elements);
+                scheduleExplosionTransition();
+
+            } catch (error) {
+                console.error("❌ Error:", error);
+                showErrorMessage(elements, error.message);
+                scheduleFormReset(elements);
+            }
+        });
+
+        // Helper: Gets all user input from the form
+        function getUserFormData() {
+            const storyModeRadio = document.querySelector('input[name="storyMode"]:checked');
+            return {
+                gameName: document.getElementById("gameName").value.trim(),
+                tagLine: document.getElementById("tagLine").value.trim(),
+                platform: document.getElementById("platform").value,
+                storyMode: storyModeRadio ? storyModeRadio.value : "coach"
+            };
+        }
+
+        // Helper: Gets references to all form DOM elements
+        function getFormElements() {
+            return {
+                form: document.getElementById("rewindForm"),
+                loadingState: document.getElementById("loadingState"),
+                statusMsg: document.getElementById("statusMsg")
+            };
+        }
+
+        // Helper: Shows loading spinner and hides form
+        function showLoadingState(elements) {
+            elements.form.style.display = "none";
+            elements.loadingState.classList.remove("hidden");
+        }
+
+        // Helper: Calls backend API to analyze player data
+        async function fetchPlayerAnalysis(userInput) {
+            const response = await fetch(`${API_URL}/api/analyze`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    gameName: userInput.gameName,
+                    tagLine: userInput.tagLine,
+                    platform: userInput.platform,
+                    matchCount: 30,
+                    storyMode: userInput.storyMode  // Pass story mode to backend
+                }),
+            });
+
+            const data = await response.json();
+            console.log("✅ API Response:", data);
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to analyze player");
+            }
+
+            return data;
+        }
+
+        // Helper: Saves player data to browser storage for map page
+        function savePlayerDataToStorage(playerData, userInput) {
+            console.log("💾 Saving to localStorage...");
+            console.log("API returned:", playerData);
+
+            const dataToSave = {
+                playerInfo: {
+                    gameName: userInput.gameName,
+                    tagLine: userInput.tagLine,
+                    ...(playerData.player || {})
+                },
+                zones: playerData.zones || {},
+                metadata: playerData.metadata || {},
+                storyMode: userInput.storyMode  // Save story mode for map page
+            };
+
+            console.log("Data to save:", dataToSave);
+            localStorage.setItem("rewindData", JSON.stringify(dataToSave));
+
+            // Verify it was saved
+            const saved = localStorage.getItem("rewindData");
+            console.log("✅ Saved to localStorage:", saved ? "Success" : "Failed");
+        }
+
+        // Helper: Shows success message to user
+        function showSuccessMessage(elements) {
+            elements.statusMsg.textContent = "✅ Analysis complete! Igniting the rewind...";
+            elements.statusMsg.className = "mt-6 p-4 rounded-lg text-sm font-semibold text-center bg-green-900 text-green-200";
+            elements.statusMsg.classList.remove("hidden");
+        }
+
+        // Helper: Schedules explosion animation and page transition
+        function scheduleExplosionTransition() {
+            const delayBeforeExplosion = 1000; // 1 second
+            setTimeout(() => {
+                triggerExplosion();
+            }, delayBeforeExplosion);
+        }
+
+        // Helper: Shows error message to user
+        function showErrorMessage(elements, errorText) {
+            elements.loadingState.classList.add("hidden");
+            elements.statusMsg.textContent = `❌ Error: ${errorText}`;
+            elements.statusMsg.className = "mt-6 p-4 rounded-lg text-sm font-semibold text-center bg-red-900 text-red-200";
+            elements.statusMsg.classList.remove("hidden");
+        }
+
+        // Helper: Resets form back to initial state after error
+        function scheduleFormReset(elements) {
+            const delayBeforeReset = 3000; // 3 seconds
+            setTimeout(() => {
+                elements.form.style.display = "block";
+                elements.statusMsg.classList.add("hidden");
+            }, delayBeforeReset);
+        }
+
+        // ============================================
+        // EXPLOSION TRANSITION - Animated page transition
+        // ============================================
+
+        // Main: Triggers explosion effect and navigates to map page
+        function triggerExplosion() {
+            console.log("💥 MASSIVE EXPLOSION!");
+
+            createExplosionParticles();
+            createShockwaveRings();
+            startScreenShakeAndFlash();
+        }
+
+        // Creates colorful particles that explode outward
+        function createExplosionParticles() {
+            const particleCount = 80; // Reduced from 150 for performance
+            const explosionColors = [
+                THEME_COLORS.pink,
+                THEME_COLORS.blue,
+                THEME_COLORS.purple,
+                THEME_COLORS.white,
+                THEME_COLORS.lightPink,
+                THEME_COLORS.lightBlue
+            ];
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = createExplosionParticle(explosionColors);
+                document.body.appendChild(particle);
+                animateExplosionParticle(particle, explosionColors);
+            }
+        }
+
+        // Helper: Creates a single explosion particle element
+        function createExplosionParticle(colors) {
+            const particle = document.createElement("div");
+            particle.className = "explosion-particle";
+
+            const size = Math.random() * 20 + 8;
+            particle.style.width = size + "px";
+            particle.style.height = size + "px";
+            particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            particle.style.left = "50%";
+            particle.style.top = "50%";
+            particle.style.boxShadow = `0 0 ${size}px ${colors[Math.floor(Math.random() * colors.length)]}`;
+
+            return particle;
+        }
+
+        // Helper: Animates particle flying outward from center
+        function animateExplosionParticle(particle, colors) {
+            const angle = Math.random() * Math.PI * 2; // Random direction (360 degrees)
+            const distance = Math.random() * 2000 + 1000; // How far it flies
+
+            gsap.to(particle, {
+                x: Math.cos(angle) * distance,
+                y: Math.sin(angle) * distance,
+                opacity: 0,
+                scale: Math.random() * 5 + 2,
+                rotation: Math.random() * 720 - 360,
+                duration: Math.random() * 2 + 1,
+                ease: "power3.out",
+                onComplete: () => particle.remove(),
+            });
+        }
+
+        // Creates expanding ring effects (shockwave)
+        function createShockwaveRings() {
+            const ringCount = 3;
+
+            for (let i = 0; i < ringCount; i++) {
+                const ring = createShockwaveRing();
+                document.body.appendChild(ring);
+                animateShockwaveRing(ring, i);
+            }
+        }
+
+        // Helper: Creates a single shockwave ring element
+        function createShockwaveRing() {
+            const ring = document.createElement("div");
+            ring.style.cssText = "position:fixed;left:50%;top:50%;width:20px;height:20px;border:3px solid #FF1493;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:9999;";
+            return ring;
+        }
+
+        // Helper: Animates ring expanding outward
+        function animateShockwaveRing(ring, index) {
+            gsap.to(ring, {
+                width: "2000px",
+                height: "2000px",
+                opacity: 0,
+                borderWidth: "0px",
+                duration: 1.5,
+                delay: index * 0.15, // Stagger each ring
+                ease: "power2.out",
+                onComplete: () => ring.remove(),
+            });
+        }
+
+        // Creates screen shake and color flashes, then navigates to map
+        function startScreenShakeAndFlash() {
+            const timeline = gsap.timeline({
+                onComplete: () => { window.location.href = "interactive_map.html"; }
+            });
+
+            addScreenShake(timeline);
+            addColorFlashes(timeline);
+            addFadeToBlack(timeline);
+        }
+
+        // Helper: Adds screen shake effect to timeline
+        function addScreenShake(timeline) {
+            timeline.to("body", {
+                x: () => Math.random() * 40 - 20,
+                y: () => Math.random() * 40 - 20,
+                duration: 0.05,
+                repeat: 15,
+                yoyo: true
+            });
+        }
+
+        // Helper: Adds rapid color flashes to timeline
+        function addColorFlashes(timeline) {
+            timeline
+                .to("body", { backgroundColor: THEME_COLORS.pink, duration: 0.08 }, "-=0.5")
+                .to("body", { backgroundColor: THEME_COLORS.white, duration: 0.05 })
+                .to("body", { backgroundColor: THEME_COLORS.blue, duration: 0.08 })
+                .to("body", { backgroundColor: THEME_COLORS.white, duration: 0.05 })
+                .to("body", { backgroundColor: THEME_COLORS.purple, duration: 0.08 })
+                .to("body", { backgroundColor: THEME_COLORS.white, duration: 0.05 });
+        }
+
+        // Helper: Adds final fade to black before page transition
+        function addFadeToBlack(timeline) {
+            timeline.to("body", { backgroundColor: "#000000", duration: 0.4 });
+        }
+
+        // ============================================
+        // NAVIGATION - Vi's Coaching Session
+        // ============================================
+
+        // Navigates to Vi's coaching session page (boring but effective!)
+        function goToCoachingSession() {
+            console.log("👊 Going to Vi's coaching session...");
+            // TODO: Update this URL to your coaching page when it's ready
+            window.location.href = "coaching_session.html";
+        }
+
+        // ============================================
+        // INITIALIZATION - Runs when page loads
+        // ============================================
+
+        window.addEventListener("load", () => {
+            console.log("🎮 Jinx's Rewind Machine Loading...");
+            createBackgroundParticles();
+        });
+    </script>
+</body>
+</html>
