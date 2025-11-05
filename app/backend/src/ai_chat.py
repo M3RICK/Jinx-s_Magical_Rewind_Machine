@@ -1,12 +1,18 @@
 import os
+import sys
 import time
 import json
 from dotenv import load_dotenv
 from langchain_aws import ChatBedrock
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+import boto3
 
 # Import our League of Legends tools
 from league_tools import TOOL_DEFINITIONS, execute_tool, set_player_puuid
+
+# Import conversation persistence modules
+from db.src.repositories.conversation_repository import ConversationRepository
+from db.src.models.conversation import Conversation
 
 # TODO: RAG Implementation
 # 1. Add vector DB client (AWS OpenSearch / FAISS)
@@ -111,13 +117,64 @@ def start_chat_session(player_context=None):
     print("Connected! Start chatting:\n")
 
     # Set player PUUID for match history access
+    puuid = None
     if player_context and player_context.get('puuid'):
-        set_player_puuid(player_context['puuid'])
+        puuid = player_context['puuid']
+        set_player_puuid(puuid)
+
+    # Initialize conversation repository and create/load conversation
+    conversation_repo = None
+    current_conversation = None
+
+    if puuid:
+        try:
+            dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_DEFAULT_REGION', 'eu-west-3'))
+            conversation_repo = ConversationRepository(dynamodb)
+
+            # Create a new conversation for this session
+            current_conversation = Conversation.create_new(puuid)
+            # Save the new conversation to DynamoDB
+            conversation_repo.create_conversation(current_conversation)
+            print("[INFO] Conversation persistence enabled\n")
+
+            # Load recent conversation history (last 3 conversations)
+            print("[INFO] Loading recent conversation history...")
+            recent_conversations = conversation_repo.get_recent_conversations(puuid, count=3)
+
+            if recent_conversations:
+                print(f"[INFO] Loaded {len(recent_conversations)} recent conversation(s)\n")
+            else:
+                print("[INFO] No previous conversations found\n")
+
+        except Exception as e:
+            print(f"[WARNING] Could not initialize conversation persistence: {e}")
+            print("[INFO] Continuing without conversation memory\n")
+            conversation_repo = None
+            current_conversation = None
+            recent_conversations = []
+    else:
+        recent_conversations = []
 
     # Build system prompt with player context
     system_prompt = SYSTEM_PROMPT
     if player_context and player_context.get('privacy_prompt'):
         system_prompt += player_context['privacy_prompt']
+
+    # Add conversation history context to system prompt
+    if recent_conversations:
+        history_context = "\n\nRECENT CONVERSATION HISTORY:\n"
+        history_context += "You have chatted with this player before. Here are summaries of recent conversations:\n\n"
+
+        for idx, conv in enumerate(reversed(recent_conversations), 1):
+            history_context += f"--- Conversation {idx} (from {conv.created_at[:10]}) ---\n"
+            # Include last few messages from each conversation
+            for msg in conv.messages[-4:]:  # Last 4 messages per conversation
+                role_label = "Player" if msg.role == "user" else "You"
+                history_context += f"{role_label}: {msg.content[:150]}{'...' if len(msg.content) > 150 else ''}\n"
+            history_context += "\n"
+
+        history_context += "Use this context to remember the player's preferences, past discussions, and provide continuity.\n"
+        system_prompt += history_context
 
     # Our "memory" is just a list of messages
     messages = [SystemMessage(content=system_prompt)]
@@ -192,6 +249,20 @@ def start_chat_session(player_context=None):
                 else:
                     # No more tool calls send response
                     print(f"\nAI: {response.content}\n")
+
+                    # Save conversation to DynamoDB after each complete turn
+                    if current_conversation and conversation_repo:
+                        try:
+                            # Add user message and AI response to conversation
+                            current_conversation.add_message("user", user_input)
+                            current_conversation.add_message("assistant", response.content)
+
+                            # Save/update conversation in DynamoDB
+                            conversation_repo.update_conversation(current_conversation)
+
+                        except Exception as save_error:
+                            print(f"[WARNING] Failed to save conversation: {save_error}")
+
                     break
 
         except Exception as e:
