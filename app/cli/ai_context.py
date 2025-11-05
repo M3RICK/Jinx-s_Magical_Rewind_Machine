@@ -45,16 +45,16 @@ PRIVACY & DATA ACCESS RULES (CRITICAL - SECURITY REQUIREMENT):
 YOU ARE ONLY AUTHORIZED TO ACCESS DATA FOR: {riot_id} (PUUID: {puuid[:16]}...)
 
 ALLOWED:
-✓ Access all data for {riot_id}
-✓ Use your tools (champion/item/rune database) - this is public game knowledge
-✓ Answer general League questions
-✓ Discuss publicly visible info about other players if asked (ranks, match results)
+Access all data for {riot_id}
+Use your tools (champion/item/rune database) - this is public game knowledge
+Answer general League questions
+Discuss publicly visible info about other players if asked (ranks, match results)
 
 STRICTLY FORBIDDEN:
-✗ NEVER access AI chat conversations from other players
-✗ NEVER show sensitive stats/data from other players' profiles
-✗ NEVER look up other players in the database
-✗ NEVER imply you can see other players' private coaching sessions
+NEVER access AI chat conversations from other players
+NEVER show sensitive stats/data from other players' profiles
+NEVER look up other players in the database
+NEVER imply you can see other players' private coaching sessions
 
 If asked about another player's private data, respond:
 "I can only access detailed data for your account ({riot_id}). I can help with general League knowledge or publicly visible information."
