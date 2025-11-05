@@ -24,10 +24,10 @@ if USE_MOCK_DB:
     print("\n" + "="*60)
     print("🔧 MOCK DB MODE ENABLED - Zero AWS costs!")
     print("="*60 + "\n")
-    from db.src.mock_db import (
+    from testing.mocks.mock_db import (
         MockPlayerRepository as PlayerRepository,
         store_all_stories, get_all_stories, is_story_fresh,
-        delete_all_stories, get_story
+        delete_all_stories, get_story, check_story_mode
     )
     player_repo = PlayerRepository()
 else:
@@ -35,7 +35,7 @@ else:
     print("☁️  REAL DB MODE - Using AWS DynamoDB")
     print("="*60 + "\n")
     from db.src.queries.story_queries import (
-        get_all_stories, store_all_stories, is_story_fresh, delete_all_stories, get_story
+        get_all_stories, store_all_stories, is_story_fresh, delete_all_stories, get_story, check_story_mode
     )
     from db.src.repositories.player_repository import PlayerRepository
     from db.src.db_handshake import get_dynamodb_reasources
@@ -48,11 +48,20 @@ CORS(app)
 FRONTEND_FOLDER = '/app/frontend/src'
 PUBLIC_FOLDER = '/app/frontend/public'
 
+VALID_PLATFORMS = [
+    'euw1', 'eun1', 'na1', 'kr', 'br1', 'la1', 'la2', 'oc1',
+    'tr1', 'ru', 'jp1', 'ph2', 'sg2', 'th2', 'tw2', 'vn2'
+]
+MIN_MATCH_COUNT = 5
+MAX_MATCH_COUNT = 50
+
 
 # Utility: Convert riot_id format (URL-safe to standard)
 def parse_riot_id(riot_id_str):
-    """Convert 'name-tag' to 'name#tag'"""
-    return riot_id_str.replace('-', '#')
+    result = riot_id_str.replace('-', '#')
+    if '#' not in result:
+        raise ValueError(f"Invalid riot_id format: {riot_id_str}")
+    return result
 
 
 # Utility: Format riot_id (standard to URL-safe)
@@ -82,11 +91,21 @@ def static_files(filename):
     return send_from_directory(PUBLIC_FOLDER, filename)
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'version': '1.0.0',
+        'database': 'mock' if USE_MOCK_DB else 'dynamodb',
+        'ai': 'mock' if os.getenv('USE_MOCK_AI', 'false').lower() == 'true' else 'bedrock'
+    }), 200
+
+
 # ============================================================================
 # SHARED ANALYSIS LOGIC
 # ============================================================================
 
-def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, force_refresh=False):
+def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, force_refresh=False, story_mode='coach'):
     """
     Shared analysis logic for both /api/analyze and /api/refresh.
 
@@ -96,6 +115,7 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
         platform: Platform/region (default: euw1)
         match_count: Number of matches to analyze (default: 30)
         force_refresh: Skip cache check and force fresh analysis
+        story_mode: 'coach' for helpful advice or 'roast' for savage humor (default: coach)
 
     Returns:
         tuple: (response_data, error_message, status_code)
@@ -109,31 +129,45 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                 existing_player = player_repo.get_by_riot_id(riot_id)
                 if existing_player:
                     puuid = existing_player.puuid
-                    # Check if stories are fresh
-                    if is_story_fresh(puuid, 'intro', max_age_seconds=604800):  # 7 days
-                        print(f"Using cached stories for {riot_id}")
-                        cached_stories = get_all_stories(puuid)
 
-                        # Format response
-                        zones = {}
-                        for story in cached_stories:
-                            zones[story['zone_id']] = {
-                                'zone_name': story['zone_name'],
-                                'story': story['story_text'],
-                                'stats': story.get('stats', {})
-                            }
+                    # Check if stories are fresh (within 7 days)
+                    if is_story_fresh(puuid, 'intro', max_age_seconds=604800):
+                        # Check if cached mode matches requested mode
+                        if check_story_mode(puuid, story_mode):
+                            mode_emoji = "🎓" if story_mode == 'coach' else "🔥"
+                            print(f"✅ Using cached stories for {riot_id} ({mode_emoji} {story_mode.upper()} mode)")
 
-                        return ({
-                            'player': {
-                                'puuid': puuid,
-                                'riot_id': riot_id,
-                            },
-                            'zones': zones,
-                            'metadata': {
-                                'cached': True,
-                                'generated_at': cached_stories[0].get('generated_at') if cached_stories else int(time.time())
-                            }
-                        }, None, 200)
+                            cached_stories = get_all_stories(puuid)
+
+                            # Format response
+                            zones = {}
+                            for story in cached_stories:
+                                zones[story['zone_id']] = {
+                                    'zone_name': story['zone_name'],
+                                    'story': story['story_text'],
+                                    'stats': story.get('stats', {})
+                                }
+
+                            return ({
+                                'player': {
+                                    'puuid': puuid,
+                                    'riot_id': riot_id,
+                                },
+                                'zones': zones,
+                                'metadata': {
+                                    'cached': True,
+                                    'story_mode': story_mode,
+                                    'generated_at': cached_stories[0].get('generated_at') if cached_stories else int(time.time())
+                                }
+                            }, None, 200)
+                        else:
+                            # Mode mismatch - delete old cache and regenerate
+                            cached_stories = get_all_stories(puuid)
+                            if cached_stories:
+                                old_mode = cached_stories[0].get('story_mode', 'coach')
+                                print(f"🔄 Mode mismatch: Cache is {old_mode.upper()}, requested {story_mode.upper()}")
+                                print(f"🗑️  Deleting old {old_mode} stories and regenerating in {story_mode} mode...")
+                                delete_all_stories(puuid)
             except Exception as e:
                 print(f"Error checking cache: {e}")
                 # Continue with fresh analysis if cache check fails
@@ -163,13 +197,13 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                 # Analyze zones
                 zone_stats = analyze_player_zones(player.processed_stats)
 
-                # Generate stories
-                stories = generate_all_stories(zone_stats)
+                # Generate stories with specified mode
+                stories = generate_all_stories(zone_stats, story_mode=story_mode)
 
-                # Store in DB
+                # Store in DB with story mode
                 if player.puuid:
-                    stored = store_all_stories(player.puuid, stories)
-                    print(f"Stored {len(stored)} stories for {riot_id}")
+                    stored = store_all_stories(player.puuid, stories, story_mode=story_mode)
+                    print(f"Stored {len(stored)} stories for {riot_id} in {story_mode.upper()} mode")
 
                 return {
                     'player': {
@@ -183,7 +217,8 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                     'metadata': {
                         'matches_analyzed': len(player.processed_stats),
                         'generated_at': int(time.time()),
-                        'cached': False
+                        'cached': False,
+                        'story_mode': story_mode
                     }
                 }, None
 
@@ -225,20 +260,41 @@ def analyze_player():
         }
     """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'error': 'Invalid JSON or missing Content-Type header'}), 400
 
-        # Validate input
         game_name = data.get('gameName')
         tag_line = data.get('tagLine')
         platform = data.get('platform', 'euw1')
         match_count = data.get('matchCount', 30)
+        story_mode = data.get('storyMode', 'coach')
 
         if not game_name or not tag_line:
             return jsonify({'error': 'gameName and tagLine are required'}), 400
 
+        if not isinstance(game_name, str) or not isinstance(tag_line, str):
+            return jsonify({'error': 'gameName and tagLine must be strings'}), 400
+
+        if platform not in VALID_PLATFORMS:
+            return jsonify({'error': f'Invalid platform. Must be one of: {", ".join(VALID_PLATFORMS)}'}), 400
+
+        try:
+            match_count = int(match_count)
+            if match_count < MIN_MATCH_COUNT or match_count > MAX_MATCH_COUNT:
+                return jsonify({'error': f'matchCount must be between {MIN_MATCH_COUNT} and {MAX_MATCH_COUNT}'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'matchCount must be a valid number'}), 400
+
+        if story_mode not in ['coach', 'roast']:
+            story_mode = 'coach'
+
+        print(f"📖 Story mode: {story_mode.upper()}")
+
         # Perform analysis
         result, error, status_code = _perform_analysis(
-            game_name, tag_line, platform, match_count, force_refresh=False
+            game_name, tag_line, platform, match_count,
+            force_refresh=False, story_mode=story_mode
         )
 
         if error:
@@ -267,15 +323,15 @@ def get_zones(riot_id):
         }
     """
     try:
-        # Parse riot_id
         riot_id_parsed = parse_riot_id(riot_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
-        # Get player from DB
+    try:
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if not player:
             return jsonify({'error': f'Player {riot_id_parsed} not found in database'}), 404
 
-        # Get stories
         stories = get_all_stories(player.puuid)
 
         if not stories:
@@ -283,7 +339,6 @@ def get_zones(riot_id):
                 'error': f'No stories found for {riot_id_parsed}. Run /api/analyze first.'
             }), 404
 
-        # Format response
         zones = {}
         for story in stories:
             zones[story['zone_id']] = {
@@ -291,6 +346,8 @@ def get_zones(riot_id):
                 'story': story['story_text'],
                 'stats': story.get('stats', {})
             }
+
+        story_mode = stories[0].get('story_mode', 'coach') if stories else 'coach'
 
         return jsonify({
             'player': {
@@ -300,6 +357,7 @@ def get_zones(riot_id):
             'zones': zones,
             'metadata': {
                 'cached': True,
+                'story_mode': story_mode,
                 'generated_at': stories[0].get('generated_at') if stories else int(time.time())
             }
         }), 200
@@ -307,7 +365,7 @@ def get_zones(riot_id):
     except Exception as e:
         print(f"Error in /api/zones: {e}")
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/zone/<riot_id>/<zone_id>', methods=['GET'])
@@ -327,15 +385,15 @@ def get_zone(riot_id, zone_id):
         }
     """
     try:
-        # Parse riot_id
         riot_id_parsed = parse_riot_id(riot_id)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
-        # Get player from DB
+    try:
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if not player:
             return jsonify({'error': f'Player {riot_id_parsed} not found'}), 404
 
-        # Get specific story
         story = get_story(player.puuid, zone_id)
 
         if not story:
@@ -345,6 +403,7 @@ def get_zone(riot_id, zone_id):
             'zone_id': story['zone_id'],
             'zone_name': story['zone_name'],
             'story': story['story_text'],
+            'story_mode': story.get('story_mode', 'coach'),
             'stats': story.get('stats', {}),
             'generated_at': story.get('generated_at')
         }), 200
@@ -352,7 +411,7 @@ def get_zone(riot_id, zone_id):
     except Exception as e:
         print(f"Error in /api/zone: {e}")
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/refresh/<riot_id>', methods=['POST'])
@@ -371,24 +430,44 @@ def refresh_player(riot_id):
     Response: Same as /api/analyze
     """
     try:
-        # Parse riot_id from URL
         riot_id_parsed = parse_riot_id(riot_id)
-        game_name, tag_line = riot_id_parsed.split('#')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
-        # Get optional parameters (silent=True allows missing Content-Type)
+    try:
+        parts = riot_id_parsed.split('#')
+        if len(parts) != 2:
+            return jsonify({'error': 'Invalid riot_id format'}), 400
+        game_name, tag_line = parts
+
         data = request.get_json(silent=True) or {}
         match_count = data.get('matchCount', 30)
         platform = data.get('platform', 'euw1')
+        story_mode = data.get('storyMode', 'coach')
 
-        # Delete old cached stories first
+        if platform not in VALID_PLATFORMS:
+            return jsonify({'error': f'Invalid platform. Must be one of: {", ".join(VALID_PLATFORMS)}'}), 400
+
+        try:
+            match_count = int(match_count)
+            if match_count < MIN_MATCH_COUNT or match_count > MAX_MATCH_COUNT:
+                return jsonify({'error': f'matchCount must be between {MIN_MATCH_COUNT} and {MAX_MATCH_COUNT}'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'matchCount must be a valid number'}), 400
+
+        if story_mode not in ['coach', 'roast']:
+            story_mode = 'coach'
+
+        print(f"📖 Refresh with story mode: {story_mode.upper()}")
+
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if player:
             deleted_count = delete_all_stories(player.puuid)
             print(f"Deleted {deleted_count} old stories for {riot_id_parsed}")
 
-        # Run fresh analysis with force_refresh=True
         result, error, status_code = _perform_analysis(
-            game_name, tag_line, platform, match_count, force_refresh=True
+            game_name, tag_line, platform, match_count,
+            force_refresh=True, story_mode=story_mode
         )
 
         if error:
@@ -399,7 +478,7 @@ def refresh_player(riot_id):
     except Exception as e:
         print(f"Error in /api/refresh: {e}")
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 if __name__ == '__main__':
