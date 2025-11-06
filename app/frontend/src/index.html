@@ -90,59 +90,72 @@
             margin: 0 auto;
             filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.7));
             transform-origin: top center;
-            animation: signDrop 5s cubic-bezier(0.68, -0.55, 0.265, 1.55) 2s forwards;
+            animation: signDrop 5s ease-in-out 2s forwards;
         }
 
-        /* Animation: Realistic sign falling with pendulum physics - NO Y-axis movement */
+        /* Animation: Smooth pendulum physics with natural swing motion */
         @keyframes signDrop {
             0%, 15% {
                 transform: rotate(0deg);
                 transform-origin: top center;
+                animation-timing-function: linear;
             }
-            /* Pivot shifts to top left corner instantly */
+            /* Pivot shifts to top left corner */
             20% {
-                transform: rotate(0deg);
+                transform: rotate(10deg);
                 transform-origin: top left;
+                animation-timing-function: ease-in;
             }
-            /* Fast drop to vertical with momentum */
+            30% {
+                transform: rotate(110deg);
+                transform-origin: top left;
+                animation-timing-function: ease-out;
+            }
             35% {
-                transform: rotate(95deg);
+                transform: rotate(125deg);
                 transform-origin: top left;
+                animation-timing-function: ease-out;
             }
-            /* Swings back with force */
-            45% {
-                transform: rotate(70deg);
+            48% {
+                transform: rotate(30deg);
                 transform-origin: top left;
+                animation-timing-function: ease-out;
             }
-            /* Swings forward again */
-            55% {
-                transform: rotate(98deg);
+            53% {
+                transform: rotate(20deg);
                 transform-origin: top left;
+                animation-timing-function: ease-in;
             }
-            /* Smaller swing back */
             65% {
-                transform: rotate(80deg);
+                transform: rotate(82deg);
                 transform-origin: top left;
+                animation-timing-function: ease-out;
             }
-            /* Smaller swing forward */
-            73% {
-                transform: rotate(94deg);
-                transform-origin: top left;
-            }
-            /* Tiny swing back */
-            80% {
-                transform: rotate(87deg);
-                transform-origin: top left;
-            }
-            /* Final tiny swing */
-            87% {
-                transform: rotate(91deg);
-                transform-origin: top left;
-            }
-            /* Settles perfectly vertical and STAYS */
-            94%, 100% {
+            70% {
                 transform: rotate(90deg);
                 transform-origin: top left;
+                animation-timing-function: ease-in;
+            }
+            80% {
+                transform: rotate(68deg);
+                transform-origin: top left;
+                animation-timing-function: ease-out;
+            }
+            82% {
+                transform: rotate(66deg);
+                transform-origin: top left;
+                animation-timing-function: ease-in;
+            }
+            90% {
+                transform: rotate(67deg);
+                transform-origin: top left;
+                animation-timing-function: ease-out;
+            }
+
+            94%, 100% {
+                transform: rotate(64deg);
+                transform-origin: top left;
+                animation-timing-function: linear;
             }
         }
 
