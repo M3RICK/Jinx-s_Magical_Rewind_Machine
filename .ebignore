@@ -1,0 +1,14 @@
+.git/
+.gitignore
+.claude
+*.pyc
+__pycache__/
+venv/
+.env.local
+.env.development
+*.log
+.DS_Store
+testing/
+*.md
+.vscode/
+.idea/
