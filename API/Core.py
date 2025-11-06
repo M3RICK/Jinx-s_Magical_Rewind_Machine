@@ -2,8 +2,8 @@ import aiohttp, asyncio
 import os
 from pulsefire.clients import RiotAPIClient
 
-class Core:
 
+class Core:
     REGION_URLS = {
         "americas": "https://americas.api.riotgames.com",
         "europe": "https://europe.api.riotgames.com",
@@ -16,7 +16,7 @@ class Core:
         self.client = RiotAPIClient(default_headers={"X-Riot-Token": self.api_key})
 
     def load_api_key(self):
-        api_key = os.getenv('RIOT_API_KEY')
+        api_key = os.getenv("RIOT_API_KEY")
         if api_key:
             return api_key.strip()
 
@@ -51,7 +51,9 @@ class Core:
 
                     elif response.status in {500, 502, 503, 504}:
                         if retries > 0:
-                            print(f"[{response.status}] Server error, retrying... ({retries} left)")
+                            print(
+                                f"[{response.status}] Server error, retrying... ({retries} left)"
+                            )
                             await asyncio.sleep(2)
                             return await self.make_request(url, params, retries - 1)
                         else:
