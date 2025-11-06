@@ -209,15 +209,6 @@ def create_tables():
         )
     """)
 
-    # PATCH VERSION TABLE
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS patch_version (
-            id INTEGER PRIMARY KEY CHECK (id = 1),  -- Only allow one row
-            version TEXT NOT NULL,                  -- Current patch version (e.g., "14.23.1")
-            last_updated TEXT NOT NULL              -- ISO 8601 timestamp of last sync
-        )
-    """)
-
     # Create indexes for faster queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_cost ON items(cost_total)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_tags ON items(tags)")
@@ -236,7 +227,7 @@ def drop_all_tables():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    tables = ['items', 'champions', 'champion_counters', 'runes', 'rune_trees', 'recommended_builds', 'patch_version']
+    tables = ['items', 'champions', 'champion_counters', 'runes', 'rune_trees', 'recommended_builds']
 
     for table in tables:
         cursor.execute(f"DROP TABLE IF EXISTS {table}")

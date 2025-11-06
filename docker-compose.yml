@@ -12,6 +12,7 @@ services:
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
       # Add your AWS credentials if using real DynamoDB/Bedrock
       - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       # Add Riot API key

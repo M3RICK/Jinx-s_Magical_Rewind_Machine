@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from db.src.repositories.conversation_repository import ConversationRepository
 from db.src.models.conversation import Conversation
-from db.src.db_handshake import get_dynamodb_reasources
+from db.src.db_handshake import get_dynamodb_resources
 
 
 class ConversationService:
@@ -18,7 +18,7 @@ class ConversationService:
 
     def __init__(self):
         """Initialize repository"""
-        dynamodb = get_dynamodb_reasources()
+        dynamodb = get_dynamodb_resources()
         self.conversation_repo = ConversationRepository(dynamodb)
 
     def start_new_conversation(self, puuid: str, session_id: Optional[str] = None) -> Conversation:

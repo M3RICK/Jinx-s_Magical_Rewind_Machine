@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from API.models.player import Player
 from API.analytics.zones.zone_analyzer import analyze_player_zones
 from API.story.story_generator import generate_all_stories
-from .utils.input_validator import (
+from app.backend.src.utils.input_validator import (
     validate_game_name, validate_tag_line, validate_platform,
     validate_match_count, validate_story_mode, validate_riot_id,
     validate_zone_id, sanitize_string
@@ -41,8 +41,8 @@ else:
         get_all_stories, store_all_stories, is_story_fresh, delete_all_stories, get_story, check_story_mode
     )
     from db.src.repositories.player_repository import PlayerRepository
-    from db.src.db_handshake import get_dynamodb_reasources
-    dynamodb = get_dynamodb_reasources()
+    from db.src.db_handshake import get_dynamodb_resources
+    dynamodb = get_dynamodb_resources()
     player_repo = PlayerRepository(dynamodb)
 
 app = Flask(__name__)
