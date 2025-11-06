@@ -35,15 +35,16 @@ class ConversationRepository(BaseRepository):
         Returns:
             List of Conversation objects
         """
+        key_condition = Key('puuid').eq(puuid)
+
         params = {
-            'KeyConditionExpression': Key('puuid').eq(puuid),
             'ScanIndexForward': False  # Sort descending (newest first)
         }
 
         if limit:
             params['Limit'] = limit
 
-        items = self.query(**params)
+        items = self.query(key_condition, **params)
         return [Conversation.from_dynamodb_item(item) for item in items]
 
     def get_recent_conversations(self, puuid: str, count: int = 10) -> List[Conversation]:

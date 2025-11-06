@@ -442,15 +442,15 @@
             const rawData = localStorage.getItem('rewindData');
 
             if (!rawData) {
-                console.error("❌ No player data found");
-                alert("No player data found. Please analyze a player first!");
+                console.error("No player data found");
+                alert("Please authenticate from the main page first!");
                 window.location.href = "index.html";
                 return;
             }
 
             try {
                 playerData = JSON.parse(rawData);
-                console.log("✅ Player data loaded:", playerData);
+                console.log("Player data loaded:", playerData);
 
                 // Update header
                 if (playerData.playerInfo) {
@@ -458,7 +458,7 @@
                         `Coaching ${playerData.playerInfo.gameName}#${playerData.playerInfo.tagLine}`;
                 }
             } catch (error) {
-                console.error("❌ Error parsing player data:", error);
+                console.error("Error parsing player data:", error);
                 alert("Error loading player data");
                 window.location.href = "index.html";
             }
@@ -731,24 +731,30 @@
         //   response: "AI coaching advice text"
         // }
         async function callAICoach(userMessage) {
-            console.log("🤖 Calling AI with message:", userMessage);
+            console.log("Calling AI with message:", userMessage);
+
+            // Get session token
+            const session_token = playerData.session_token;
+
+            if (!session_token) {
+                console.error("No session token found");
+                throw new Error("No session token. Please re-analyze your player.");
+            }
 
             // Prepare request data
             const requestData = {
+                session_token: session_token,
                 message: userMessage,
+                conversationHistory: conversationHistory,
                 playerData: {
                     playerInfo: playerData.playerInfo,
                     zones: playerData.zones,
                     metadata: playerData.metadata,
                     storyMode: playerData.storyMode
                 },
-                conversationHistory: conversationHistory,
                 selectedMatch: selectedMatch
             };
 
-            // ====================================================
-            // BACKEND TEAM: Implement this API endpoint
-            // ====================================================
             const response = await fetch(`${API_URL}/api/coach`, {
                 method: 'POST',
                 headers: {

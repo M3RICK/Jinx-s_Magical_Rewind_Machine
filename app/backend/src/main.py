@@ -13,15 +13,21 @@ load_dotenv()
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
 
-from API.models.player import Player
-from API.analytics.zones.zone_analyzer import analyze_player_zones
-from API.story.story_generator import generate_all_stories
-
-# Import AI chat functionality
+# Import AI chat functionality (for /api/coach endpoint)
 from app.backend.src.ai_chat import create_chat, SYSTEM_PROMPT, set_player_puuid
 from app.backend.src.league_tools import TOOL_DEFINITIONS, execute_tool
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 import json
+
+# Map-related imports (only needed for /api/analyze endpoint - your friend's code)
+try:
+    from API.models.player import Player
+    from API.analytics.zones.zone_analyzer import analyze_player_zones
+    from API.story.story_generator import generate_all_stories
+    MAP_FEATURES_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Map features not available: {e}")
+    MAP_FEATURES_AVAILABLE = False
 
 # Check if we should use mock DB
 USE_MOCK_DB = os.getenv('USE_MOCK_DB', 'false').lower() == 'true'
@@ -55,8 +61,9 @@ else:
 app = Flask(__name__)
 CORS(app)
 
-FRONTEND_FOLDER = '/app/frontend/src'
-PUBLIC_FOLDER = '/app/frontend/public'
+# Frontend paths relative to this file
+FRONTEND_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../frontend/src'))
+PUBLIC_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../frontend/public'))
 
 VALID_PLATFORMS = [
     'euw1', 'eun1', 'na1', 'kr', 'br1', 'la1', 'la2', 'oc1',
@@ -92,13 +99,31 @@ def run_async(coro):
 
 
 @app.route('/')
+@app.route('/index.html')
 def index():
     return send_from_directory(FRONTEND_FOLDER, 'index.html')
+
+
+@app.route('/coaching_session.html')
+def coaching_session():
+    return send_from_directory(FRONTEND_FOLDER, 'coaching_session.html')
+
+
+@app.route('/interactive_map.html')
+def interactive_map():
+    return send_from_directory(FRONTEND_FOLDER, 'interactive_map.html')
 
 
 @app.route('/public/<path:filename>')
 def static_files(filename):
     return send_from_directory(PUBLIC_FOLDER, filename)
+
+
+@app.route('/assets/<path:filename>')
+def serve_assets(filename):
+    """Serve static assets (images, icons, etc.)"""
+    assets_folder = os.path.join(FRONTEND_FOLDER, 'assets')
+    return send_from_directory(assets_folder, filename)
 
 
 @app.route('/health', methods=['GET'])
@@ -109,6 +134,96 @@ def health_check():
         'database': 'mock' if USE_MOCK_DB else 'dynamodb',
         'ai': 'mock' if os.getenv('USE_MOCK_AI', 'false').lower() == 'true' else 'bedrock'
     }), 200
+
+
+@app.route('/api/authenticate', methods=['POST'])
+def authenticate_player():
+    """
+    Authentication endpoint - validates player on Riot API and creates/updates in DB
+
+    Request:
+    {
+        "gameName": "sad and bad",
+        "tagLine": "2093",
+        "platform": "euw1"
+    }
+
+    Response:
+    {
+        "session_token": "uuid",
+        "player": { "riot_id": "sad and bad#2093", "puuid": "...", ... }
+    }
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+
+        game_name = data.get('gameName')
+        tag_line = data.get('tagLine')
+        platform = data.get('platform', 'euw1')
+
+        if not game_name or not tag_line:
+            return jsonify({'error': 'gameName and tagLine are required'}), 400
+
+        riot_id = f"{game_name}#{tag_line}"
+
+        print(f"\nAuthenticating player: {riot_id} on {platform}")
+
+        # Use existing CLI logic to check/build player
+        from app.html_ai.client_check import check_and_build_client
+
+        # Map platform to region
+        platform_to_region = {
+            'na1': 'americas', 'br1': 'americas', 'la1': 'americas', 'la2': 'americas',
+            'euw1': 'europe', 'eun1': 'europe', 'tr1': 'europe', 'ru': 'europe',
+            'kr': 'asia', 'jp1': 'asia',
+            'oc1': 'sea', 'ph2': 'sea', 'sg2': 'sea', 'th2': 'sea', 'tw2': 'sea', 'vn2': 'sea'
+        }
+        region = platform_to_region.get(platform, 'europe')
+
+        # Get PUUID from Riot API first
+        from API.Core import Core
+        from API.riot.account import RiotAccountAPI
+
+        async def fetch_puuid():
+            async with Core() as core:
+                account_api = RiotAccountAPI(core)
+                return await account_api.get_puuid(game_name, tag_line, region)
+
+        puuid = asyncio.run(fetch_puuid())
+
+        if not puuid:
+            return jsonify({'error': f'Player {riot_id} not found on Riot servers'}), 404
+
+        print(f"Found player: {riot_id} (PUUID: {puuid[:16]}...)")
+
+        # Check and build client (creates/updates player, fetches matches, creates session)
+        success, player, session_token = check_and_build_client(puuid, riot_id, region, platform)
+
+        if not success:
+            return jsonify({'error': 'Failed to build player profile'}), 500
+
+        return jsonify({
+            'session_token': session_token,
+            'player': {
+                'riot_id': riot_id,
+                'puuid': puuid,
+                'gameName': game_name,
+                'tagLine': tag_line,
+                'rank': player.current_rank if player else None,
+                'winrate': player.winrate if player else None
+            },
+            'metadata': {
+                'cached': False
+            }
+        }), 200
+
+    except Exception as e:
+        print(f"Error in /api/authenticate: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 # ============================================================================
@@ -144,8 +259,7 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                     if is_story_fresh(puuid, 'intro', max_age_seconds=604800):
                         # Check if cached mode matches requested mode
                         if check_story_mode(puuid, story_mode):
-                            mode_emoji = "🎓" if story_mode == 'coach' else "🔥"
-                            print(f"✅ Using cached stories for {riot_id} ({mode_emoji} {story_mode.upper()} mode)")
+                            print(f"Using cached stories for {riot_id} ({story_mode.upper()} mode)")
 
                             cached_stories = get_all_stories(puuid)
 
@@ -158,6 +272,15 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                                     'stats': story.get('stats', {})
                                 }
 
+                            # Create or reuse session token
+                            session_token = None
+                            if not USE_MOCK_DB:
+                                from db.src.models.session import Session
+                                session = Session.create_new(puuid=puuid, riot_id=riot_id, expiry_days=7)
+                                session_repo.create_session(session)
+                                session_token = session.session_token
+                                print(f"Created session token for cached player {riot_id}")
+
                             return ({
                                 'player': {
                                     'puuid': puuid,
@@ -168,7 +291,8 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                                     'cached': True,
                                     'story_mode': story_mode,
                                     'generated_at': cached_stories[0].get('generated_at') if cached_stories else int(time.time())
-                                }
+                                },
+                                'session_token': session_token
                             }, None, 200)
                         else:
                             # Mode mismatch - delete old cache and regenerate
@@ -211,9 +335,18 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                 stories = generate_all_stories(zone_stats, story_mode=story_mode)
 
                 # Store in DB with story mode
+                session_token = None
                 if player.puuid:
                     stored = store_all_stories(player.puuid, stories, story_mode=story_mode)
                     print(f"Stored {len(stored)} stories for {riot_id} in {story_mode.upper()} mode")
+
+                    # Create session token for this player
+                    if not USE_MOCK_DB:
+                        from db.src.models.session import Session
+                        session = Session.create_new(puuid=player.puuid, riot_id=riot_id, expiry_days=7)
+                        session_repo.create_session(session)
+                        session_token = session.session_token
+                        print(f"Created session token for {riot_id}")
 
                 return {
                     'player': {
@@ -229,7 +362,8 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                         'generated_at': int(time.time()),
                         'cached': False,
                         'story_mode': story_mode
-                    }
+                    },
+                    'session_token': session_token
                 }, None
 
         result, error = run_async(analyze())
@@ -489,6 +623,215 @@ def refresh_player(riot_id):
         print(f"Error in /api/refresh: {e}")
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/coach', methods=['POST'])
+def coach_endpoint():
+    """
+    AI Coaching Chat Endpoint
+
+    Request body:
+    {
+        "session_token": "uuid-token",
+        "message": "user's question",
+        "conversationHistory": [ {role, content, timestamp}, ... ],
+        "playerData": {...} (optional)
+    }
+
+    Response:
+    {
+        "response": "AI coaching advice"
+    }
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+
+        session_token = data.get('session_token')
+        user_message = data.get('message', '')
+        conversation_history = data.get('conversationHistory', [])
+
+        if not session_token:
+            return jsonify({'error': 'session_token is required'}), 400
+
+        if not user_message:
+            return jsonify({'error': 'message is required'}), 400
+
+        print(f"\n{'='*60}")
+        print(f"Chat Request")
+        print(f"Message: {user_message}")
+        print(f"Session: {session_token[:16]}...")
+        print(f"{'='*60}\n")
+
+        # Validate session and get PUUID
+        if USE_MOCK_DB:
+            # In mock mode, skip session validation
+            print("MOCK MODE: Skipping session validation")
+            puuid = "mock-puuid-12345"
+            player_name = "MockPlayer#TAG"
+        else:
+            # Validate session token
+            puuid = session_repo.get_puuid_from_session(session_token)
+
+            if not puuid:
+                return jsonify({'error': 'Invalid or expired session'}), 401
+
+            # Extract player name from session token (since session has riot_id)
+            session = session_repo.get_session(session_token)
+            player_name = session.riot_id if session else f"Player ({puuid[:8]})"
+
+        print(f"Session valid for player: {player_name}")
+
+        # Set PUUID for tool use (match history access)
+        set_player_puuid(puuid)
+
+        # Load recent conversations from DynamoDB (last 3 conversations)
+        recent_conversations = []
+        if not USE_MOCK_DB:
+            try:
+                recent_conversations = conversation_repo.get_recent_conversations(puuid, count=3)
+                if recent_conversations:
+                    print(f"Loaded {len(recent_conversations)} previous conversation(s)")
+            except Exception as e:
+                print(f"Could not load conversation history: {e}")
+
+        # Build system prompt with player context
+        system_prompt = SYSTEM_PROMPT
+        system_prompt += f"\n\nPLAYER CONTEXT:\nPlayer: {player_name}\n"
+
+        # Add conversation history context to system prompt
+        if recent_conversations:
+            history_context = "\n\nRECENT CONVERSATION HISTORY:\n"
+            history_context += "You have chatted with this player before. Here are summaries of recent conversations:\n\n"
+
+            for idx, conv in enumerate(reversed(recent_conversations), 1):
+                history_context += f"--- Conversation {idx} (from {conv.created_at[:10]}) ---\n"
+                # Include last few messages from each conversation
+                for msg in conv.messages[-4:]:  # Last 4 messages per conversation
+                    role_label = "Player" if msg.role == "user" else "You"
+                    history_context += f"{role_label}: {msg.content[:150]}{'...' if len(msg.content) > 150 else ''}\n"
+                history_context += "\n"
+
+            history_context += "Use this context to remember the player's preferences, past discussions, and provide continuity.\n"
+            system_prompt += history_context
+
+        # Initialize messages with system prompt
+        messages = [SystemMessage(content=system_prompt)]
+
+        # Add conversation history (last 6 messages for context)
+        if conversation_history:
+            for msg in conversation_history[-6:]:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+
+                if role == 'user':
+                    messages.append(HumanMessage(content=content))
+                elif role == 'ai':
+                    messages.append(AIMessage(content=content))
+
+        # Add current user message
+        messages.append(HumanMessage(content=user_message))
+
+        # Create chat model with tools
+        chat = create_chat()
+
+        # Tool use loop - continue until we get a final response
+        max_iterations = 10
+        iteration = 0
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            # Get AI response with retry logic
+            max_retries = 5
+            for attempt in range(max_retries):
+                try:
+                    response = chat.invoke(messages)
+                    break
+                except Exception as retry_error:
+                    error_str = str(retry_error)
+                    # Check for rate limiting
+                    is_rate_limit = any(keyword in error_str.lower() for keyword in [
+                        "too many requests",
+                        "too many connections",
+                        "throttlingexception",
+                        "throttling"
+                    ])
+                    if is_rate_limit and attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 2
+                        print(f"Rate limited. Waiting {wait_time}s before retry...")
+                        time.sleep(wait_time)
+                    else:
+                        raise
+
+            # Add AI response to history
+            messages.append(response)
+
+            # Check if Claude wants to use tools
+            if hasattr(response, 'tool_calls') and response.tool_calls:
+                # Claude is requesting tool use
+                print(f"AI using {len(response.tool_calls)} tool(s)")
+
+                for tool_call in response.tool_calls:
+                    tool_name = tool_call['name']
+                    tool_input = tool_call['args']
+                    tool_use_id = tool_call['id']
+
+                    print(f"   Tool: {tool_name}({json.dumps(tool_input)})")
+
+                    # Execute the tool
+                    tool_result = execute_tool(tool_name, tool_input)
+
+                    # Add tool result to messages
+                    messages.append(ToolMessage(
+                        content=json.dumps(tool_result, indent=2),
+                        tool_call_id=tool_use_id
+                    ))
+
+                # Continue loop to get Claude's response after using tools
+                continue
+            else:
+                # No more tool calls - we have final response
+                ai_response = response.content
+
+                print(f"AI Response: {ai_response[:100]}...")
+
+                # Save conversation to DynamoDB if not in mock mode
+                if not USE_MOCK_DB:
+                    try:
+                        from db.src.models.conversation import Conversation
+
+                        # Create new conversation
+                        conv = Conversation.create_new(puuid)
+                        conv.add_message("user", user_message)
+                        conv.add_message("assistant", ai_response)
+                        conversation_repo.create_conversation(conv)
+
+                        print("Conversation saved to DynamoDB")
+                    except Exception as db_error:
+                        print(f"Could not save conversation: {db_error}")
+
+                return jsonify({
+                    'response': ai_response,
+                    'status': 'success'
+                }), 200
+
+        # Max iterations reached
+        return jsonify({
+            'error': 'AI processing took too long',
+            'response': 'I apologize, but I need to simplify my analysis. Could you rephrase your question?'
+        }), 200
+
+    except Exception as e:
+        print(f"\nError in /api/coach: {e}")
+        traceback.print_exc()
+
+        return jsonify({
+            'error': 'Internal server error',
+            'message': str(e)
+        }), 500
 
 
 if __name__ == '__main__':

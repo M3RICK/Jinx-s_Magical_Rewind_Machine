@@ -144,13 +144,15 @@ def check_and_build_client(puuid: str, riot_id: str, region: str, platform: str)
     asyncio.run(fetch_and_populate_data(puuid, region, platform, player_service, match_count=20))
 
     # Calculate and update stats from matches
-    print("[CALCULATING] Player statistics from matches...")
-    stats = player_service.calculate_player_stats_from_matches(puuid)
-    if stats:
-        player_service.update_player_stats(puuid, stats)
-        print(f"[SUCCESS] Winrate: {stats['winrate']}%, Main role: {stats['main_role']}")
-    else:
-        print("[INFO] No match data to calculate stats")
+    # TODO: Re-enable when calculate_player_stats_from_matches is implemented
+    # print("[CALCULATING] Player statistics from matches...")
+    # stats = player_service.calculate_player_stats_from_matches(puuid)
+    # if stats:
+    #     player_service.update_player_stats(puuid, stats)
+    #     print(f"[SUCCESS] Winrate: {stats['winrate']}%, Main role: {stats['main_role']}")
+    # else:
+    #     print("[INFO] No match data to calculate stats")
+    print("[INFO] Skipping stats calculation (not yet implemented)")
 
     print("=" * 60)
     print("[COMPLETE] Profile ready!")

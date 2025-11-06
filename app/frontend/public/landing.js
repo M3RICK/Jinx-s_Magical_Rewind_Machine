@@ -199,7 +199,8 @@ function storePlayerData(data, gameName, tagLine) {
             ...data.player
         },
         zones: data.zones,
-        metadata: data.metadata
+        metadata: data.metadata,
+        session_token: data.session_token
     }));
 }
 

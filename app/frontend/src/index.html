@@ -884,11 +884,64 @@
         // NAVIGATION - Vi's Coaching Session
         // ============================================
 
-        // Navigates to Vi's coaching session page (boring but effective!)
-        function goToCoachingSession() {
-            console.log("👊 Going to Vi's coaching session...");
-            // TODO: Update this URL to your coaching page when it's ready
-            window.location.href = "coaching_session.html";
+        // Navigates to Vi's coaching session page (authenticates first!)
+        async function goToCoachingSession() {
+            console.log("Going to Vi's coaching session...");
+
+            // Get form values
+            const gameName = document.getElementById("gameName").value.trim();
+            const tagLine = document.getElementById("tagLine").value.trim();
+            const platform = document.getElementById("platform").value;
+
+            // Validate form
+            if (!gameName || !tagLine) {
+                alert("Please enter your Summoner Name and Tag first!");
+                return;
+            }
+
+            // Show loading state
+            const viButton = event.target;
+            viButton.disabled = true;
+            viButton.textContent = "AUTHENTICATING...";
+
+            try {
+                // Call authentication endpoint
+                const response = await fetch("http://localhost:5000/api/authenticate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        gameName: gameName,
+                        tagLine: tagLine,
+                        platform: platform
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || "Authentication failed");
+                }
+
+                const data = await response.json();
+
+                // Store session data in localStorage
+                localStorage.setItem("rewindData", JSON.stringify({
+                    session_token: data.session_token,
+                    playerInfo: data.player,
+                    zones: {},
+                    metadata: data.metadata
+                }));
+
+                // Redirect to coaching page
+                window.location.href = "coaching_session.html";
+
+            } catch (error) {
+                console.error("Authentication error:", error);
+                alert("Error: " + error.message);
+
+                // Reset button
+                viButton.disabled = false;
+                viButton.textContent = "👊 VI'S DIRECT COACHING 👊";
+            }
         }
 
         // ============================================

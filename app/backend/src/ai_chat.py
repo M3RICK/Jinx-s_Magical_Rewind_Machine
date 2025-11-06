@@ -8,7 +8,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 import boto3
 
 # Import our League of Legends tools
-from league_tools import TOOL_DEFINITIONS, execute_tool, set_player_puuid
+from .league_tools import TOOL_DEFINITIONS, execute_tool, set_player_puuid
 
 # Import conversation persistence modules
 from db.src.repositories.conversation_repository import ConversationRepository
