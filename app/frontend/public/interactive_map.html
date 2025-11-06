@@ -1713,60 +1713,111 @@
 
             // Loads and displays the player card
             function loadPlayerCard() {
-                const container = document.getElementById("playerCardContent");
+            const container = document.getElementById("playerCardContent");
 
-                // Check if we have player data
-                if (!playerData || !playerData.playerInfo) {
-                    container.innerHTML = `
-                    <div style="text-align: center;">
-                        <p style="color: #ff1493; font-size: 16px;">❌ No player data found</p>
-                        <p style="color: #aaa; font-size: 14px;">Please try refreshing the page</p>
-                    </div>
-                `;
-                    return;
-                }
-
-                // Prepare data for card generation
-                const cardData = {
-                    playerInfo: playerData.playerInfo,
-                    zones: playerData.zones,
-                    metadata: playerData.metadata,
-                    storyMode: playerData.storyMode || "coach",
-                };
-
-                console.log("📊 Card data prepared:", cardData);
-
-                // TODO: Your friend will replace this with actual card rendering
-                // For now, show a placeholder that your friend can work with
-                container.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <p style="color: #00d4ff; font-size: 18px; font-weight: bold; margin-bottom: 15px;">
-                        Player Card Ready!
-                    </p>
-                    <p style="color: #aaa; font-size: 14px; margin-bottom: 20px;">
-                        ${playerData.playerInfo.gameName}#${playerData.playerInfo.tagLine}
-                    </p>
-                    <div style="
-                        background: rgba(0, 212, 255, 0.1);
-                        border: 2px dashed #00d4ff;
-                        border-radius: 10px;
-                        padding: 30px;
-                        margin: 20px 0;
-                    ">
-                        <p style="color: #888; font-size: 14px;">
-                            🎴 Card Component Goes Here 🎴
-                        </p>
-                        <p style="color: #666; font-size: 12px; margin-top: 10px;">
-                            (Your friend will inject the card component here)
-                        </p>
-                    </div>
+            // Check if we have player data
+            if (!playerData || !playerData.playerInfo) {
+            container.innerHTML = `
+                <div style="text-align: center;">
+                    <p style="color: #ff1493; font-size: 16px;">❌ No player data found</p>
+                    <p style="color: #aaa; font-size: 14px;">Please try refreshing the page</p>
                 </div>
             `;
-
-                // Store card data globally so your friend can access it
-                window.riftRewindCardData = cardData;
+            return;
             }
 
+            // Show loading state
+            container.innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <div style="
+                    width: 60px;
+                    height: 60px;
+                    border: 4px solid rgba(255, 20, 147, 0.3);
+                    border-top-color: #ff1493;
+                    border-radius: 50%;
+                    margin: 0 auto 20px;
+                    animation: spin 1s linear infinite;
+                "></div>
+                <p style="color: #00d4ff; font-size: 18px; font-weight: bold;">
+                    🎴 Generating your card...
+                </p>
+                <p style="color: #aaa; font-size: 14px; margin-top: 10px;">
+                    This may take a few seconds
+                </p>
+            </div>
+            <style>
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+            </style>
+            `;
+
+            // Format riot_id for API call (replace # with -)
+            const riotId = `${playerData.playerInfo.gameName}-${playerData.playerInfo.tagLine}`;
+
+            // Call the card generation API
+            fetch(`/api/generate-card/${riotId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.image) {
+                    // Display the generated card
+                    container.innerHTML = `
+                        <div style="text-align: center;">
+                            <img 
+                                src="${data.image}" 
+                                alt="Player Card" 
+                                style="
+                                    max-width: 100%;
+                                    height: auto;
+                                    border-radius: 15px;
+                                    box-shadow: 0 0 30px rgba(255, 20, 147, 0.6);
+                                "
+                            />
+                        </div>
+                    `;
+                    
+                    // Store the image data for download functionality
+                    window.playerCardImage = data.image;
+                    
+                    console.log("✅ Card generated successfully!");
+                } else {
+                    throw new Error(data.error || 'Failed to generate card');
+                }
+            })
+            .catch(error => {
+                console.error('Error generating card:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <p style="color: #ff1493; font-size: 18px; font-weight: bold; margin-bottom: 15px;">
+                            ❌ Failed to Generate Card
+                        </p>
+                        <p style="color: #aaa; font-size: 14px;">
+                            ${error.message || 'An error occurred while generating your card'}
+                        </p>
+                        <button 
+                            onclick="loadPlayerCard()" 
+                            style="
+                                margin-top: 20px;
+                                padding: 10px 20px;
+                                background: rgba(255, 20, 147, 0.2);
+                                border: 2px solid #ff1493;
+                                color: #ff1493;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-weight: 600;
+                            "
+                        >
+                            🔄 Retry
+                        </button>
+                    </div>
+                `;
+            });
+            }
             // Closes the player card modal
             function closePlayerCard() {
                 const modal = document.getElementById("playerCardModal");
@@ -1774,15 +1825,43 @@
                 console.log("✅ Player card closed");
             }
 
-            // Downloads the player card as an image
             function downloadCard() {
                 console.log("📥 Download card clicked");
 
-                // TODO: Your friend will implement this
-                // This should capture the card element and download it as PNG
-                alert(
-                    "Download functionality will be implemented by your teammate!\n\nThis will save the card as an image.",
-                );
+                if (!window.playerCardImage) {
+                    alert("No card image available. Please try generating the card again.");
+                    return;
+                }
+
+                try {
+                    // Create a temporary link element
+                    const link = document.createElement('a');
+                    link.href = window.playerCardImage;
+                    link.download = `${playerData.playerInfo.gameName}_rewind_card.png`;
+                    
+                    // Trigger download
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Show success feedback
+                    const btn = event.target;
+                    const originalText = btn.textContent;
+                    btn.textContent = "✅ Downloaded!";
+                    btn.style.background = "#00d4ff";
+                    btn.style.color = "white";
+                    
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = "";
+                        btn.style.color = "";
+                    }, 2000);
+                    
+                    console.log("✅ Card downloaded successfully!");
+                } catch (error) {
+                    console.error("Failed to download card:", error);
+                    alert("Failed to download card. Please try again.");
+                }
             }
 
             // Copies shareable link to clipboard

@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+import base64
 import os
 import sys
 import asyncio
@@ -11,6 +12,7 @@ load_dotenv()
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
 
+from app.backend.src.image_creation import RewindExportProfil, RewindCardGeneration
 from API.models.player import Player
 from API.analytics.zones.zone_analyzer import analyze_player_zones
 from API.story.story_generator import generate_all_stories
@@ -445,7 +447,80 @@ def refresh_player(riot_id):
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/generate-card/<riot_id>', methods=['GET'])
+def generate_card(riot_id):
+    """Generate player card image"""
+    try:
+        # Validate riot_id
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
+        riot_id_parsed = parse_riot_id(riot_id)
+        
+        # Get player data
+        player = player_repo.get_by_riot_id(riot_id_parsed)
+        if not player:
+            return jsonify({'error': 'Player not found'}), 404
+
+        # Get stories
+        stories = get_all_stories(player.puuid)
+        if not stories:
+            return jsonify({'error': 'No stories found'}), 404
+
+        # Extract player info
+        game_name = riot_id_parsed.split('#')[0]
+        
+        # Get stats from stories
+        intro_story = next((s for s in stories if s['zone_id'] == 'intro'), None)
+        stats = intro_story.get('stats', {}) if intro_story else {}
+        
+        # Determine most played champion (you'll need to add this logic)
+        champion_played = stats.get('most_played_champion', 'Ahri')
+        games_played = stats.get('total_games', 0)
+        kd = stats.get('kda', 0.0)
+        lvl = player.summoner_info.get('summonerLevel', 1) if hasattr(player, 'summoner_info') else 1
+        rank = player.rank_info[0] if hasattr(player, 'rank_info') and player.rank_info else 'Unranked'
+        
+        # Get title and story from intro
+        title = intro_story.get('zone_name', 'The Legend') if intro_story else 'The Legend'
+        story = intro_story.get('story_text', 'A summoner of great skill')[:100] if intro_story else 'A summoner of great skill'
+        
+        # Create profile
+        profil = RewindExportProfil(
+            player_name=game_name,
+            champion_played=champion_played,
+            games_played=games_played,
+            kd=kd,
+            lvl=lvl,
+            rank=rank,
+            title=title,
+            story=story
+        )
+        
+        # Generate card
+        generator = RewindCardGeneration(profil)
+        success = generator.create_card()
+        
+        if not success:
+            return jsonify({'error': 'Failed to generate card'}), 500
+        
+        # Read the generated image and convert to base64
+        filename = f"{game_name}_rewind_card.png"
+        with open(filename, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        os.remove(filename)
+        
+        return jsonify({
+            'success': True,
+            'image': f"data:image/png;base64,{image_data}",
+            'player_name': game_name
+        }), 200
+        
+    except Exception as e:
+        print(f"Error generating card: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Internal server error'}), 500
 # ============================================================================
 # STATIC FILE SERVING (Must be last to not override API routes)
 # ============================================================================
