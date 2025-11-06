@@ -1,0 +1,1976 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Rift Rewind - Interactive Map</title>
+
+        <!-- External Libraries -->
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+
+        <style>
+            /* ============================================
+           BASE STYLES
+           ============================================ */
+            body {
+                font-family: "Inter", sans-serif;
+                background: linear-gradient(
+                    135deg,
+                    #050816 0%,
+                    #0a0e27 50%,
+                    #1a1f3a 100%
+                );
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+
+            /* ============================================
+           MAP CONTAINER
+           ============================================ */
+
+            /* Fullscreen map that takes entire viewport */
+            .map-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                overflow: hidden;
+                cursor: crosshair;
+                z-index: 1;
+                background: #000;
+            }
+
+            /* The map image itself - heavily zoomed in like in-game */
+            .map-image {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                object-fit: cover;
+                transform-origin: top left;
+                image-rendering: -webkit-optimize-contrast;
+                image-rendering: crisp-edges;
+            }
+
+            /* ============================================
+           CLICKABLE ZONES
+           ============================================ */
+
+            /* Zones container - follows map transformations */
+            #zonesContainer {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                pointer-events: none;
+                transform-origin: top left;
+            }
+
+            /* Individual zone overlay - small circles */
+            .zone {
+                position: absolute;
+                background: rgba(255, 20, 147, 0.3);
+                border: 3px solid rgba(255, 20, 147, 0.8);
+                border-radius: 50%;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                pointer-events: auto;
+                backdrop-filter: blur(4px);
+                width: 60px;
+                height: 60px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Zone hover effect */
+            .zone:hover {
+                background: rgba(255, 20, 147, 0.6);
+                border-color: rgba(255, 20, 147, 1);
+                box-shadow: 0 0 30px rgba(255, 20, 147, 1);
+                transform: scale(1.2);
+            }
+
+            /* Zone label text - just emoji in circle */
+            .zone-label {
+                color: #fff;
+                font-size: 28px;
+                text-shadow: 0 0 10px rgba(0, 212, 255, 0.8);
+                pointer-events: none;
+                line-height: 1;
+            }
+
+            /* Pulsing animation for zones - MORE INTENSE */
+            @keyframes pulse-zone {
+                0%,
+                100% {
+                    box-shadow:
+                        0 0 20px rgba(255, 20, 147, 0.8),
+                        0 0 40px rgba(255, 20, 147, 0.4);
+                    transform: translate(-50%, -50%) scale(1);
+                }
+                50% {
+                    box-shadow:
+                        0 0 40px rgba(255, 20, 147, 1),
+                        0 0 80px rgba(0, 212, 255, 0.8);
+                    transform: translate(-50%, -50%) scale(1.1);
+                }
+            }
+
+            .zone-pulse {
+                animation: pulse-zone 1.5s ease-in-out infinite;
+            }
+
+            /* Explosion particles */
+            .explosion-particle {
+                position: fixed;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                pointer-events: none;
+                z-index: 9999;
+            }
+
+            /* Screen shake */
+            @keyframes screenShake {
+                0%,
+                100% {
+                    transform: translate(0, 0);
+                }
+                10% {
+                    transform: translate(-10px, 5px);
+                }
+                20% {
+                    transform: translate(10px, -5px);
+                }
+                30% {
+                    transform: translate(-8px, 3px);
+                }
+                40% {
+                    transform: translate(8px, -3px);
+                }
+                50% {
+                    transform: translate(-5px, 2px);
+                }
+                60% {
+                    transform: translate(5px, -2px);
+                }
+                70% {
+                    transform: translate(-3px, 1px);
+                }
+                80% {
+                    transform: translate(3px, -1px);
+                }
+                90% {
+                    transform: translate(-1px, 0px);
+                }
+            }
+
+            .screen-shake {
+                animation: screenShake 0.5s ease-in-out;
+            }
+
+            /* ============================================
+           HEADER OVERLAY
+           ============================================ */
+
+            .header-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: rgba(0, 0, 0, 0.8);
+                backdrop-filter: blur(10px);
+                border-bottom: 2px solid rgba(255, 20, 147, 0.3);
+                padding: 15px 30px;
+                z-index: 100;
+            }
+
+            .glow-text {
+                text-shadow: 0 0 20px rgba(255, 20, 147, 0.8);
+            }
+
+            /* ============================================
+           STORY MODAL - CHAOTIC JINX STYLE
+           ============================================ */
+
+            /* Modal backdrop with portal effect */
+            .modal {
+                position: fixed;
+                inset: 0;
+                background: radial-gradient(
+                    circle at center,
+                    rgba(255, 20, 147, 0.3),
+                    rgba(0, 0, 0, 0.95)
+                );
+                backdrop-filter: blur(10px);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 200;
+            }
+
+            .modal.active {
+                display: flex;
+                animation: portalOpen 0.5s ease-out;
+            }
+
+            /* Portal entrance animation - MORE INTENSE */
+            @keyframes portalOpen {
+                0% {
+                    background: radial-gradient(
+                        circle at center,
+                        rgba(255, 20, 147, 0) 0%,
+                        rgba(0, 0, 0, 0) 100%
+                    );
+                }
+                30% {
+                    background: radial-gradient(
+                        circle at center,
+                        rgba(255, 20, 147, 0.8) 0%,
+                        rgba(0, 212, 255, 0.4) 30%,
+                        rgba(0, 0, 0, 0.5) 100%
+                    );
+                }
+                100% {
+                    background: radial-gradient(
+                        circle at center,
+                        rgba(255, 20, 147, 0.4) 0%,
+                        rgba(0, 212, 255, 0.2) 20%,
+                        rgba(0, 0, 0, 0.95) 100%
+                    );
+                }
+            }
+
+            /* Modal content box - Jinx chaos style */
+            .modal-content {
+                position: relative;
+                background: linear-gradient(
+                    135deg,
+                    #0a0e27 0%,
+                    #1a1f3a 50%,
+                    #2a1f3a 100%
+                );
+                border: 4px solid transparent;
+                border-image: linear-gradient(
+                        45deg,
+                        #ff1493,
+                        #00d4ff,
+                        #9b30ff,
+                        #ff1493
+                    )
+                    1;
+                border-radius: 20px;
+                padding: 40px;
+                max-width: 650px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow:
+                    0 0 40px rgba(255, 20, 147, 0.6),
+                    0 0 80px rgba(0, 212, 255, 0.3),
+                    inset 0 0 60px rgba(255, 20, 147, 0.1);
+                transform: scale(0) rotate(360deg);
+                animation: portalSpin 0.5s
+                    cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+            }
+
+            /* Portal spin entrance for modal content - MORE DRAMATIC */
+            @keyframes portalSpin {
+                0% {
+                    transform: scale(0) rotate(360deg);
+                    opacity: 0;
+                    filter: blur(20px);
+                }
+                50% {
+                    transform: scale(1.3) rotate(-20deg);
+                    opacity: 0.8;
+                    filter: blur(5px);
+                }
+                70% {
+                    transform: scale(0.9) rotate(10deg);
+                    filter: blur(0px);
+                }
+                85% {
+                    transform: scale(1.05) rotate(-5deg);
+                }
+                100% {
+                    transform: scale(1) rotate(0deg);
+                    opacity: 1;
+                    filter: blur(0px);
+                }
+            }
+
+            /* Chaotic corner decorations */
+            .modal-content::before,
+            .modal-content::after {
+                content: "";
+                position: absolute;
+                width: 60px;
+                height: 60px;
+                background: radial-gradient(
+                    circle,
+                    rgba(255, 20, 147, 0.4),
+                    transparent
+                );
+                border-radius: 50%;
+                animation: float 3s ease-in-out infinite;
+            }
+
+            .modal-content::before {
+                top: -20px;
+                left: -20px;
+                animation-delay: 0s;
+            }
+
+            .modal-content::after {
+                bottom: -20px;
+                right: -20px;
+                animation-delay: 1.5s;
+            }
+
+            @keyframes float {
+                0%,
+                100% {
+                    transform: translateY(0) scale(1);
+                    opacity: 0.6;
+                }
+                50% {
+                    transform: translateY(-10px) scale(1.2);
+                    opacity: 1;
+                }
+            }
+
+            /* Zone emoji header - BIG and chaotic */
+            .modal-zone-icon {
+                font-size: 100px;
+                text-align: center;
+                margin-bottom: 10px;
+                filter: drop-shadow(0 0 30px rgba(255, 20, 147, 1));
+                animation: iconBounce 0.7s
+                    cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            }
+
+            @keyframes iconBounce {
+                0% {
+                    transform: scale(0) rotate(-360deg);
+                    filter: blur(10px);
+                }
+                50% {
+                    transform: scale(1.5) rotate(180deg);
+                    filter: blur(5px);
+                }
+                70% {
+                    transform: scale(0.9) rotate(0deg);
+                    filter: blur(0px);
+                }
+                85% {
+                    transform: scale(1.1) rotate(0deg);
+                }
+                100% {
+                    transform: scale(1) rotate(0deg);
+                    filter: blur(0px);
+                }
+            }
+
+            /* Title with graffiti-style glow */
+            .modal-title-text {
+                text-align: center;
+                font-size: 32px;
+                font-weight: 900;
+                margin-bottom: 20px;
+                background: linear-gradient(45deg, #ff1493, #00d4ff, #9b30ff);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                text-shadow: 0 0 30px rgba(255, 20, 147, 0.5);
+                animation: titleGlow 2s ease-in-out infinite;
+            }
+
+            @keyframes titleGlow {
+                0%,
+                100% {
+                    filter: drop-shadow(0 0 10px rgba(255, 20, 147, 0.8));
+                }
+                50% {
+                    filter: drop-shadow(0 0 25px rgba(0, 212, 255, 1));
+                }
+            }
+
+            /* Story text */
+            .modal-story-text {
+                font-size: 18px;
+                line-height: 1.8;
+                color: #e0e0e0;
+                margin-bottom: 30px;
+                text-align: left;
+                padding: 20px;
+                background: rgba(0, 0, 0, 0.3);
+                border-left: 4px solid #ff1493;
+                border-radius: 8px;
+            }
+
+            /* ============================================
+           BUTTONS
+           ============================================ */
+
+            .btn-back {
+                padding: 10px 20px;
+                background: rgba(255, 20, 147, 0.2);
+                border: 2px solid #ff1493;
+                color: #ff1493;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+
+            .btn-back:hover {
+                background: #ff1493;
+                color: white;
+                transform: scale(1.05);
+            }
+
+            .btn-card {
+                padding: 10px 20px;
+                background: rgba(0, 212, 255, 0.2);
+                border: 2px solid #00d4ff;
+                color: #00d4ff;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+
+            .btn-card:hover {
+                background: #00d4ff;
+                color: white;
+                transform: scale(1.05);
+                box-shadow: 0 0 20px rgba(0, 212, 255, 0.6);
+            }
+
+            .btn-share {
+                padding: 10px 20px;
+                background: rgba(155, 48, 255, 0.2);
+                border: 2px solid #9b30ff;
+                color: #9b30ff;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+
+            .btn-share:hover {
+                background: #9b30ff;
+                color: white;
+                transform: scale(1.05);
+                box-shadow: 0 0 20px rgba(155, 48, 255, 0.6);
+            }
+
+            .btn-close {
+                padding: 15px 30px;
+                background: linear-gradient(135deg, #ff1493, #9b30ff, #00d4ff);
+                background-size: 200% 200%;
+                border: 3px solid rgba(255, 20, 147, 0.5);
+                color: white;
+                border-radius: 50px;
+                font-weight: 900;
+                font-size: 18px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                width: 100%;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                box-shadow: 0 0 20px rgba(255, 20, 147, 0.6);
+                animation: gradientShift 3s ease infinite;
+            }
+
+            @keyframes gradientShift {
+                0%,
+                100% {
+                    background-position: 0% 50%;
+                }
+                50% {
+                    background-position: 100% 50%;
+                }
+            }
+
+            .btn-close:hover {
+                transform: scale(1.05);
+                box-shadow: 0 0 40px rgba(255, 20, 147, 1);
+                border-color: rgba(0, 212, 255, 1);
+            }
+
+            /* X close button in corner */
+            .btn-close-x {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: rgba(255, 20, 147, 0.3);
+                border: 2px solid #ff1493;
+                color: #fff;
+                font-size: 24px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .btn-close-x:hover {
+                background: #ff1493;
+                transform: rotate(90deg) scale(1.1);
+                box-shadow: 0 0 20px rgba(255, 20, 147, 1);
+            }
+
+            /* ============================================
+           PROGRESS COUNTER STYLES
+           ============================================ */
+
+            #discoveredCount {
+                transition: all 0.3s ease;
+                display: inline-block;
+            }
+
+            #progressBar {
+                transition:
+                    width 0.5s ease,
+                    box-shadow 0.5s ease;
+            }
+
+            #bombsFound {
+                transition: all 0.3s ease;
+                display: inline-block;
+            }
+
+            /* ============================================
+           HIDDEN MONKEY BOMB STYLES
+           ============================================ */
+
+            .hidden-bomb {
+                position: absolute;
+                width: 50px;
+                height: 50px;
+                background: url("assets/icons/monkeybomb.png") center/contain
+                    no-repeat;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                filter: drop-shadow(0 0 10px rgba(255, 165, 0, 0.6));
+                animation: bombFloat 2s ease-in-out infinite;
+                pointer-events: auto;
+                z-index: 50;
+            }
+
+            .hidden-bomb:hover {
+                transform: scale(1.3) rotate(15deg);
+                filter: drop-shadow(0 0 20px rgba(255, 165, 0, 1));
+            }
+
+            @keyframes bombFloat {
+                0%,
+                100% {
+                    transform: translateY(0px) rotate(-5deg);
+                }
+                50% {
+                    transform: translateY(-10px) rotate(5deg);
+                }
+            }
+
+            .hidden-bomb.found {
+                animation: bombCollect 0.5s ease-out forwards;
+            }
+
+            @keyframes bombCollect {
+                0% {
+                    transform: scale(1) rotate(0deg);
+                    opacity: 1;
+                }
+                50% {
+                    transform: scale(1.5) rotate(360deg);
+                    opacity: 0.8;
+                }
+                100% {
+                    transform: scale(0) rotate(720deg);
+                    opacity: 0;
+                }
+            }
+        </style>
+    </head>
+
+    <body class="text-white">
+        <!-- ==========================================
+         HEADER - Fixed at top
+         Shows player info and back button
+         ========================================== -->
+        <header class="header-overlay">
+            <div class="flex items-center justify-between">
+                <!-- Player Info -->
+                <div>
+                    <h1
+                        class="text-2xl font-bold glow-text"
+                        style="
+                            font-family: &quot;Cinzel&quot;, serif;
+                            color: #ff1493;
+                        "
+                    >
+                        RIFT REWIND MAP
+                    </h1>
+                    <p class="text-sm text-gray-400 mt-1" id="playerName">
+                        Loading player...
+                    </p>
+
+                    <!-- Progress Counter -->
+                    <div class="mt-2 flex items-center gap-2">
+                        <div class="text-xs font-semibold" id="progressCounter">
+                            <span class="text-pink-400" id="discoveredCount"
+                                >0</span
+                            >
+                            <span class="text-gray-500">/</span>
+                            <span class="text-gray-400" id="totalCount">8</span>
+                            <span class="text-gray-500 ml-1"
+                                >zones discovered</span
+                            >
+                        </div>
+                        <div
+                            class="h-2 w-32 bg-gray-700 rounded-full overflow-hidden"
+                        >
+                            <div
+                                id="progressBar"
+                                class="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-500"
+                                style="width: 0%"
+                            ></div>
+                        </div>
+                    </div>
+
+                    <!-- Monkey Bomb Counter (Easter Egg) -->
+                    <div class="mt-2 flex items-center gap-2">
+                        <div
+                            class="text-xs font-semibold"
+                            id="bombCounter"
+                            style="opacity: 0.7"
+                        >
+                            <span style="font-size: 14px">💣</span>
+                            <span class="text-yellow-400" id="bombsFound"
+                                >0</span
+                            >
+                            <span class="text-gray-500">/</span>
+                            <span class="text-gray-400" id="totalBombs">5</span>
+                            <span class="text-gray-500 ml-1">monkey bombs</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Back Button -->
+                <button class="btn-back" onclick="goBack()">
+                    ← Back to Start
+                </button>
+            </div>
+        </header>
+
+        <!-- ==========================================
+         MAP DISPLAY - Fullscreen
+         Shows Summoner's Rift map
+         ========================================== -->
+        <div class="map-container">
+            <img
+                src="assets/images/Summoner's_Rift_map_s14.png"
+                alt="Summoner's Rift"
+                class="map-image"
+                id="mapImage"
+            />
+
+            <!-- Clickable zones container -->
+            <div id="zonesContainer"></div>
+        </div>
+
+        <!-- ==========================================
+         STORY MODAL - JINX CHAOS STYLE
+         Shows zone stories when clicked with portal effect
+         ========================================== -->
+        <div id="storyModal" class="modal" onclick="closeModal()">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <!-- X Close Button -->
+                <button class="btn-close-x" onclick="closeModal()">×</button>
+
+                <!-- Zone Icon - BIG emoji -->
+                <div id="modalIcon" class="modal-zone-icon">🎯</div>
+
+                <!-- Zone Title - Colorful gradient -->
+                <h2
+                    id="modalTitle"
+                    class="modal-title-text"
+                    style="font-family: &quot;Cinzel&quot;, serif"
+                >
+                    Zone Name
+                </h2>
+
+                <!-- Story Text - Styled box -->
+                <div id="modalStory" class="modal-story-text">
+                    Your story will appear here...
+                </div>
+
+                <!-- Close Button -->
+                <button class="btn-close" onclick="closeModal()">
+                    Got it! 💥
+                </button>
+            </div>
+        </div>
+
+        <!-- ==========================================
+         TUTORIAL MODAL - Shows on first visit
+         ========================================== -->
+        <div id="tutorialModal" class="modal active">
+            <div
+                class="modal-content"
+                onclick="event.stopPropagation()"
+                style="max-width: 500px"
+            >
+                <!-- Tutorial Icon -->
+                <div class="modal-zone-icon">🗺️</div>
+
+                <!-- Tutorial Title -->
+                <h2
+                    class="modal-title-text"
+                    style="font-family: &quot;Cinzel&quot;, serif"
+                >
+                    Welcome to the Rift!
+                </h2>
+
+                <!-- Tutorial Content -->
+                <div class="modal-story-text" style="text-align: left">
+                    <p style="margin-bottom: 15px">
+                        Here's how to explore your rewind:
+                    </p>
+
+                    <div style="margin-bottom: 12px">
+                        <strong style="color: #ff1493">🖱️ Navigate:</strong
+                        ><br />
+                        Move your mouse to the edges of the screen to pan around
+                        the map
+                    </div>
+
+                    <div style="margin-bottom: 12px">
+                        <strong style="color: #00d4ff"
+                            >🎯 Discover Zones:</strong
+                        ><br />
+                        Click on the glowing circles to reveal your performance
+                        stories
+                    </div>
+
+                    <div style="margin-bottom: 12px">
+                        <strong style="color: #9b30ff"
+                            >📊 Track Progress:</strong
+                        ><br />
+                        Watch the counter at the top to see how many zones
+                        you've discovered
+                    </div>
+
+                    <div
+                        style="
+                            margin-top: 20px;
+                            padding: 10px;
+                            background: rgba(255, 20, 147, 0.1);
+                            border-left: 3px solid #ff1493;
+                            border-radius: 4px;
+                        "
+                    >
+                        <strong>💡 Pro Tip:</strong> Try to discover all zones
+                        for a special surprise!
+                    </div>
+                </div>
+
+                <!-- Don't Show Again Checkbox -->
+                <div style="margin: 20px 0; text-align: left">
+                    <label
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 10px;
+                            cursor: pointer;
+                        "
+                    >
+                        <input
+                            type="checkbox"
+                            id="dontShowTutorial"
+                            style="width: 18px; height: 18px; cursor: pointer"
+                        />
+                        <span style="font-size: 14px; color: #ccc"
+                            >Don't show this again</span
+                        >
+                    </label>
+                </div>
+
+                <!-- Close Button -->
+                <button class="btn-close" onclick="closeTutorial()">
+                    Let's Go! 🚀
+                </button>
+            </div>
+        </div>
+
+        <!-- ==========================================
+         PLAYER CARD MODAL - Reward for completing all zones
+         ========================================== -->
+        <div id="playerCardModal" class="modal">
+            <div
+                class="modal-content"
+                onclick="event.stopPropagation()"
+                style="max-width: 700px"
+            >
+                <!-- X Close Button -->
+                <button class="btn-close-x" onclick="closePlayerCard()">
+                    ×
+                </button>
+
+                <!-- Card Icon -->
+                <div class="modal-zone-icon">🎴</div>
+
+                <!-- Card Title -->
+                <h2
+                    class="modal-title-text"
+                    style="font-family: &quot;Cinzel&quot;, serif"
+                >
+                    All Zones Discovered!
+                </h2>
+
+                <!-- Subtitle -->
+                <p
+                    style="
+                        text-align: center;
+                        color: #ffd700;
+                        font-size: 18px;
+                        margin: -10px 0 20px 0;
+                        font-weight: bold;
+                    "
+                >
+                    🏆 Your Rift Rewind Card Unlocked 🏆
+                </p>
+
+                <!-- Card Container - Your friend will inject the card here -->
+                <div
+                    id="playerCardContainer"
+                    style="
+                        min-height: 400px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: rgba(0, 0, 0, 0.3);
+                        border-radius: 15px;
+                        padding: 20px;
+                        border: 2px solid rgba(0, 212, 255, 0.3);
+                    "
+                >
+                    <!-- Player card will be injected here by backend/your friend -->
+                    <div id="playerCardContent">
+                        <div style="text-align: center">
+                            <p
+                                style="
+                                    color: #00d4ff;
+                                    font-size: 16px;
+                                    margin-bottom: 10px;
+                                "
+                            >
+                                📊 Generating your card...
+                            </p>
+                            <p style="color: #aaa; font-size: 14px">
+                                This will display your custom playing card
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Share Buttons -->
+                <div
+                    style="
+                        margin-top: 25px;
+                        display: flex;
+                        gap: 12px;
+                        justify-content: center;
+                        flex-wrap: wrap;
+                    "
+                >
+                    <button class="btn-share" onclick="downloadCard()">
+                        📥 Download Card
+                    </button>
+                    <button class="btn-share" onclick="copyCardLink()">
+                        🔗 Copy Link
+                    </button>
+                    <button class="btn-share" onclick="shareToTwitter()">
+                        🐦 Share on Twitter
+                    </button>
+                </div>
+
+                <!-- Info Text -->
+                <p
+                    style="
+                        text-align: center;
+                        color: #888;
+                        font-size: 12px;
+                        margin-top: 15px;
+                    "
+                >
+                    Share your Rift Rewind card with friends!
+                </p>
+
+                <!-- Close Button -->
+                <button
+                    class="btn-close"
+                    onclick="closePlayerCard()"
+                    style="margin-top: 20px"
+                >
+                    Awesome! ✨
+                </button>
+            </div>
+        </div>
+
+        <script>
+            // ============================================
+            // CONFIGURATION
+            // ============================================
+            let playerData = null;
+
+            // Camera system state
+            let camera = {
+                x: 0.0, // Current X position (0 = left, 1 = right) - Starts bottom-left like blue side!
+                y: 1.0, // Current Y position (0 = top, 1 = bottom)
+                zoom: 3.5, // Zoom level re-enabled! Zones positioned correctly
+                speed: 0.003, // Movement speed (percentage per frame)
+                edgeThreshold: 50, // Distance from edge to trigger scroll (pixels)
+            };
+
+            // Mouse position tracking
+            let mouse = {
+                x: 0,
+                y: 0,
+            };
+
+            // Progress tracking
+            let discoveredZones = new Set();
+            let totalZones = 0;
+
+            // Monkey Bomb Easter Egg tracking
+            let foundBombs = new Set();
+            const totalBombs = 5;
+            const bombPositions = [
+                { x: 20, y: 45, id: "bomb1" }, // Blue jungle
+                { x: 85, y: 85, id: "bomb2" }, // Red base corner
+                { x: 50, y: 15, id: "bomb3" }, // Top lane bush
+                { x: 70, y: 40, id: "bomb4" }, // Mid lane
+                { x: 15, y: 70, id: "bomb5" }, // Bot lane bush
+            ];
+
+            // Jinx quotes for completion
+            const jinxQuotes = [
+                "Rules are made to be broken... like buildings! Or people!",
+                "I'm crazy! Got a doctor's note!",
+                "Bombs away! Hehe!",
+                "You think I'm crazy? You should see my sister!",
+                "Wanna know how I got all these bombs? I stole 'em!",
+            ];
+
+            // Debug mode - set to true to help position zones
+            const DEBUG_MODE = false;
+
+            // ============================================
+            // INITIALIZATION - Runs when page loads
+            // ============================================
+
+            // Main initialization function
+            function initializePage() {
+                console.log("🗺️ Interactive Map Loading...");
+
+                loadPlayerData();
+                displayPlayerInfo();
+                setupCameraSystem();
+                createZones();
+                createHiddenBombs();
+                checkTutorialPreference();
+            }
+
+            // Check if user wants to see tutorial
+            function checkTutorialPreference() {
+                const dontShowTutorial =
+                    localStorage.getItem("dontShowTutorial");
+
+                if (dontShowTutorial === "true") {
+                    // Hide tutorial immediately
+                    document
+                        .getElementById("tutorialModal")
+                        .classList.remove("active");
+                    console.log("📚 Tutorial skipped (user preference)");
+                } else {
+                    console.log("📚 Showing tutorial");
+                }
+            }
+
+            // Close tutorial and save preference
+            function closeTutorial() {
+                const dontShowCheckbox =
+                    document.getElementById("dontShowTutorial");
+
+                if (dontShowCheckbox.checked) {
+                    localStorage.setItem("dontShowTutorial", "true");
+                    console.log("💾 Tutorial preference saved");
+                }
+
+                const tutorialModal = document.getElementById("tutorialModal");
+                tutorialModal.classList.remove("active");
+
+                console.log("✅ Tutorial closed");
+            }
+
+            // ============================================
+            // DATA LOADING
+            // ============================================
+
+            // Loads player data from browser storage
+            function loadPlayerData() {
+                const rawData = localStorage.getItem("rewindData");
+
+                if (!rawData) {
+                    console.warn("⚠️ No player data found in localStorage");
+                    handleNoData();
+                    return;
+                }
+
+                try {
+                    playerData = JSON.parse(rawData);
+                    console.log(
+                        "✅ Player data loaded successfully:",
+                        playerData,
+                    );
+                } catch (error) {
+                    console.error("❌ Error parsing player data:", error);
+                    handleDataError(error);
+                }
+            }
+
+            // Handles case when no data is found
+            function handleNoData() {
+                const playerNameEl = document.getElementById("playerName");
+                playerNameEl.textContent =
+                    "⚠️ No player data found. Please go back and analyze a player first.";
+                playerNameEl.style.color = "#ffcc00";
+            }
+
+            // Handles errors when parsing data
+            function handleDataError(error) {
+                const playerNameEl = document.getElementById("playerName");
+                playerNameEl.textContent =
+                    "❌ Error loading data: " + error.message;
+                playerNameEl.style.color = "#ff4444";
+            }
+
+            // ============================================
+            // UI UPDATE
+            // ============================================
+
+            // Updates header with player information
+            function displayPlayerInfo() {
+                const playerNameEl = document.getElementById("playerName");
+
+                if (!playerData || !playerData.playerInfo) {
+                    playerNameEl.textContent = "Player information unavailable";
+                    return;
+                }
+
+                const { gameName, tagLine } = playerData.playerInfo;
+                playerNameEl.textContent = `${gameName}#${tagLine}`;
+
+                console.log("✅ Displaying player:", gameName, tagLine);
+            }
+
+            // ============================================
+            // NAVIGATION
+            // ============================================
+
+            // Returns to the landing page
+            function goBack() {
+                console.log("🔙 Navigating back to index.html");
+                window.location.href = "index.html";
+            }
+
+            // ============================================
+            // CAMERA SYSTEM - League of Legends style
+            // ============================================
+
+            // Sets up the camera system
+            function setupCameraSystem() {
+                console.log("📹 Setting up camera system...");
+
+                trackMousePosition();
+                startCameraLoop();
+
+                console.log("✅ Camera system ready!");
+            }
+
+            // Tracks mouse position on the screen
+            function trackMousePosition() {
+                document.addEventListener("mousemove", (event) => {
+                    mouse.x = event.clientX;
+                    mouse.y = event.clientY;
+                });
+            }
+
+            // Starts the camera update loop
+            function startCameraLoop() {
+                // Update camera 30 times per second (reduced from 60 for performance)
+                setInterval(() => {
+                    updateCameraPosition();
+                    applyCameraTransform();
+                }, 1000 / 30);
+            }
+
+            // Calculates camera movement based on mouse position
+            function updateCameraPosition() {
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+
+                // Check if mouse is near edges
+                const nearLeftEdge = mouse.x < camera.edgeThreshold;
+                const nearRightEdge =
+                    mouse.x > screenWidth - camera.edgeThreshold;
+                const nearTopEdge = mouse.y < camera.edgeThreshold;
+                const nearBottomEdge =
+                    mouse.y > screenHeight - camera.edgeThreshold;
+
+                // Move camera based on edge proximity (in percentage)
+                if (nearLeftEdge) {
+                    camera.x -= camera.speed;
+                }
+                if (nearRightEdge) {
+                    camera.x += camera.speed;
+                }
+                if (nearTopEdge) {
+                    camera.y -= camera.speed;
+                }
+                if (nearBottomEdge) {
+                    camera.y += camera.speed;
+                }
+
+                // Keep camera within bounds (0 to 1)
+                camera.x = Math.max(0, Math.min(1, camera.x));
+                camera.y = Math.max(0, Math.min(1, camera.y));
+            }
+
+            // Applies camera position to the map image with zoom
+            function applyCameraTransform() {
+                const mapImage = document.getElementById("mapImage");
+                const zonesContainer =
+                    document.getElementById("zonesContainer");
+
+                // Calculate how much to translate based on zoom and camera position
+                // When zoomed in 3.5x, we can pan across the "extra" space
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+
+                // How much extra space do we have when zoomed?
+                const extraWidth = screenWidth * (camera.zoom - 1);
+                const extraHeight = screenHeight * (camera.zoom - 1);
+
+                // Translate based on camera position
+                const translateX = -camera.x * extraWidth;
+                const translateY = -camera.y * extraHeight;
+
+                const transform = `scale(${camera.zoom}) translate(${translateX / camera.zoom}px, ${translateY / camera.zoom}px)`;
+
+                // Apply same transform to both map and zones
+                mapImage.style.transform = transform;
+                zonesContainer.style.transform = transform;
+            }
+
+            // ============================================
+            // CLICKABLE ZONES SYSTEM
+            // ============================================
+
+            // Zone positions on Summoner's Rift (percentage-based from top-left)
+            const zonePositions = {
+                intro: { x: 12.8, y: 88.6, label: "Base", emoji: "🏠" },
+                bot_lane: { x: 74.9, y: 75.2, label: "Bot", emoji: "⬇️" },
+                mid_lane: { x: 48.6, y: 43.1, label: "Mid", emoji: "🎯" },
+                top_lane: { x: 28.1, y: 16.8, label: "Top", emoji: "⬆️" },
+                dragon_pit: { x: 60.7, y: 60.6, label: "Dragon", emoji: "🐲" },
+                baron_pit: { x: 38.5, y: 26.5, label: "Baron", emoji: "🐉" },
+                river: { x: 36.2, y: 30.3, label: "River", emoji: "🌊" },
+                jungle: { x: 32.9, y: 39.0, label: "Jungle", emoji: "🌳" },
+            };
+
+            // Additional zone positions (for zones that appear in multiple locations)
+            const additionalZones = [
+                {
+                    dataId: "river",
+                    x: 63.9,
+                    y: 55.2,
+                    label: "River",
+                    emoji: "🌊",
+                },
+                {
+                    dataId: "jungle",
+                    x: 51.5,
+                    y: 62.6,
+                    label: "Jungle",
+                    emoji: "🌳",
+                },
+            ];
+
+            // Creates all clickable zones on the map
+            function createZones() {
+                console.log("📍 Creating zones...");
+
+                if (!playerData || !playerData.zones) {
+                    console.warn("⚠️ No zone data available");
+                    return;
+                }
+
+                const container = document.getElementById("zonesContainer");
+                let circleCount = 0;
+                const uniqueZoneIds = new Set();
+
+                // Loop through each zone in player data
+                for (let zoneId in playerData.zones) {
+                    const zoneData = playerData.zones[zoneId];
+                    const position = zonePositions[zoneId];
+
+                    if (!position) {
+                        console.warn(
+                            `⚠️ No position defined for zone: ${zoneId}`,
+                        );
+                        continue;
+                    }
+
+                    if (DEBUG_MODE) {
+                        console.log(
+                            `📍 ${position.emoji} ${position.label}: x: ${position.x}%, y: ${position.y}%`,
+                        );
+                    }
+
+                    createSingleZone(container, zoneId, zoneData, position);
+                    uniqueZoneIds.add(zoneId);
+                    circleCount++;
+                }
+
+                // Create additional zones (multiple locations for same zone data)
+                // These don't count toward total - they're just extra clickable spots
+                additionalZones.forEach((extraZone) => {
+                    const zoneData = playerData.zones[extraZone.dataId];
+                    if (zoneData) {
+                        createSingleZone(
+                            container,
+                            extraZone.dataId,
+                            zoneData,
+                            extraZone,
+                        );
+                        circleCount++;
+
+                        if (DEBUG_MODE) {
+                            console.log(
+                                `📍 ${extraZone.emoji} ${extraZone.label} (extra): x: ${extraZone.x}%, y: ${extraZone.y}%`,
+                            );
+                        }
+                    }
+                });
+
+                // Total zones = unique zone data, not total circles
+                totalZones = uniqueZoneIds.size;
+                console.log(
+                    `✅ Created ${circleCount} clickable circles for ${totalZones} unique zones`,
+                );
+
+                // Update total zones counter in UI
+                document.getElementById("totalCount").textContent = totalZones;
+            }
+
+            // Creates a single zone element (small circle)
+            function createSingleZone(container, zoneId, zoneData, position) {
+                const zone = document.createElement("div");
+                zone.className = "zone zone-pulse";
+                zone.setAttribute("data-zone-id", zoneId);
+
+                // Position the zone (centered on coordinates)
+                zone.style.left = position.x + "%";
+                zone.style.top = position.y + "%";
+                zone.style.transform = "translate(-50%, -50%)"; // Center the circle on the point
+
+                // Debug mode: Make zones more visible
+                if (DEBUG_MODE) {
+                    zone.style.background = "rgba(255, 20, 147, 0.7)";
+                    zone.style.border = "4px solid rgba(255, 20, 147, 1)";
+                }
+
+                // Map zone IDs to icon names
+                const zoneIconMap = {
+                    intro: "base", // Base/fountain
+                    bot_lane: "botlane",
+                    mid_lane: "mid",
+                    top_lane: "top",
+                    dragon_pit: "dragon",
+                    baron_pit: "baron",
+                    river: "river",
+                    jungle: "jungle",
+                };
+
+                const storyMode = playerData.storyMode || "coach";
+                const iconName = zoneIconMap[zoneId] || "top"; // Fallback to top icon
+                const iconPath = `assets/icons/${storyMode}/${storyMode}_${iconName}.png`;
+
+                const icon = document.createElement("img");
+                icon.src = iconPath;
+                icon.alt = position.label;
+                icon.style.width = "40px";
+                icon.style.height = "40px";
+                icon.style.objectFit = "contain";
+                icon.style.pointerEvents = "none";
+                icon.style.filter =
+                    "drop-shadow(0 0 8px rgba(255, 20, 147, 0.8))";
+
+                // Handle missing icons gracefully
+                icon.onerror = () => {
+                    console.warn(
+                        `Icon not found: ${iconPath}, using fallback emoji`,
+                    );
+                    icon.style.display = "none";
+                    const fallbackEmoji = document.createElement("span");
+                    fallbackEmoji.className = "zone-label";
+                    fallbackEmoji.textContent = position.emoji;
+                    zone.appendChild(fallbackEmoji);
+                };
+
+                zone.appendChild(icon);
+
+                // Click handler with flash effect
+                zone.addEventListener("click", (e) => {
+                    e.stopPropagation(); // Prevent coordinate logging when clicking zones
+
+                    // Flash the zone!
+                    zone.style.transform = "translate(-50%, -50%) scale(1.5)";
+                    zone.style.background = "rgba(255, 20, 147, 1)";
+                    zone.style.boxShadow = "0 0 60px rgba(255, 20, 147, 1)";
+
+                    setTimeout(() => {
+                        zone.style.transform = "";
+                        zone.style.background = "";
+                        zone.style.boxShadow = "";
+                    }, 200);
+
+                    handleZoneClick(zoneId, zoneData, position);
+                });
+
+                container.appendChild(zone);
+            }
+
+            // Handles when a zone is clicked
+            function handleZoneClick(zoneId, zoneData, position) {
+                console.log("🎯 Zone clicked:", zoneId);
+
+                // Track zone discovery
+                const isNewDiscovery = !discoveredZones.has(zoneId);
+                if (isNewDiscovery) {
+                    discoveredZones.add(zoneId);
+                    updateProgressCounter();
+
+                    // Check if all zones discovered
+                    if (discoveredZones.size === totalZones) {
+                        setTimeout(celebrateCompletion, 1000);
+                    }
+                }
+
+                const zoneName = zoneData.zone_name || position.label;
+                const story =
+                    zoneData.story || "No story available for this zone.";
+                const emoji = position.emoji || "🎯";
+
+                showModal(zoneName, story, emoji);
+            }
+
+            // Updates the progress counter UI
+            function updateProgressCounter() {
+                const discoveredCount = discoveredZones.size;
+                const percentage = (discoveredCount / totalZones) * 100;
+
+                // Update counter text
+                const counterEl = document.getElementById("discoveredCount");
+                counterEl.textContent = discoveredCount;
+
+                // Animate counter
+                counterEl.style.transform = "scale(1.5)";
+                counterEl.style.color = "#ff1493";
+                setTimeout(() => {
+                    counterEl.style.transform = "scale(1)";
+                }, 300);
+
+                // Update progress bar
+                const progressBar = document.getElementById("progressBar");
+                progressBar.style.width = percentage + "%";
+
+                // Add glow effect when discovering new zone
+                progressBar.style.boxShadow = "0 0 20px rgba(255, 20, 147, 1)";
+                setTimeout(() => {
+                    progressBar.style.boxShadow = "none";
+                }, 500);
+
+                console.log(
+                    `📊 Progress: ${discoveredCount}/${totalZones} (${percentage.toFixed(1)}%)`,
+                );
+            }
+
+            // Celebration when all zones are discovered
+            function celebrateCompletion() {
+                console.log("🎉 ALL ZONES DISCOVERED!");
+
+                // Create confetti explosion
+                createCompletionConfetti();
+
+                // Flash the progress bar
+                const progressBar = document.getElementById("progressBar");
+                progressBar.style.background =
+                    "linear-gradient(90deg, #ffd700, #ff1493, #00d4ff, #ffd700)";
+                progressBar.style.backgroundSize = "200% 100%";
+                progressBar.style.animation =
+                    "gradientShift 2s linear infinite";
+
+                // Show completion message briefly
+                const progressCounter =
+                    document.getElementById("progressCounter");
+                const originalHTML = progressCounter.innerHTML;
+
+                progressCounter.innerHTML = `
+                <span class="text-yellow-400 animate-pulse">🎉 ALL ZONES DISCOVERED! 🎉</span>
+            `;
+
+                // After confetti, show the player card as reward
+                setTimeout(() => {
+                    openPlayerCard();
+                    // Reset progress counter after opening card
+                    setTimeout(() => {
+                        progressCounter.innerHTML = originalHTML;
+                    }, 500);
+                }, 2000); // Wait 2 seconds for confetti to finish
+            }
+
+            // Creates confetti particles for completion
+            function createCompletionConfetti() {
+                const colors = [
+                    "#ffd700",
+                    "#ff1493",
+                    "#00d4ff",
+                    "#9b30ff",
+                    "#ffffff",
+                ];
+                const particleCount = 100;
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = document.createElement("div");
+                    particle.style.cssText = `
+                    position: fixed;
+                    width: 10px;
+                    height: 10px;
+                    background: ${colors[Math.floor(Math.random() * colors.length)]};
+                    border-radius: 50%;
+                    pointer-events: none;
+                    z-index: 9999;
+                    left: 50%;
+                    top: 20%;
+                `;
+                    document.body.appendChild(particle);
+
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * 800 + 400;
+                    const duration = Math.random() * 2000 + 1000;
+
+                    const endX = Math.cos(angle) * distance;
+                    const endY =
+                        Math.sin(angle) * distance + Math.random() * 400;
+
+                    particle.animate(
+                        [
+                            {
+                                transform: "translate(0, 0) scale(1)",
+                                opacity: 1,
+                            },
+                            {
+                                transform: `translate(${endX}px, ${endY}px) scale(0)`,
+                                opacity: 0,
+                            },
+                        ],
+                        {
+                            duration: duration,
+                            easing: "cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                        },
+                    ).onfinish = () => particle.remove();
+                }
+            }
+
+            // ============================================
+            // HIDDEN MONKEY BOMB SYSTEM (Easter Egg)
+            // ============================================
+
+            // Creates hidden monkey bombs on the map
+            function createHiddenBombs() {
+                console.log("💣 Placing hidden monkey bombs...");
+
+                const container = document.getElementById("zonesContainer");
+
+                bombPositions.forEach((bombPos) => {
+                    const bomb = document.createElement("div");
+                    bomb.className = "hidden-bomb";
+                    bomb.setAttribute("data-bomb-id", bombPos.id);
+
+                    // Position bomb
+                    bomb.style.left = bombPos.x + "%";
+                    bomb.style.top = bombPos.y + "%";
+                    bomb.style.transform = "translate(-50%, -50%)";
+
+                    // Click handler
+                    bomb.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        collectBomb(bombPos.id, bomb);
+                    });
+
+                    container.appendChild(bomb);
+                });
+
+                console.log(`✅ ${totalBombs} monkey bombs hidden on the map!`);
+            }
+
+            // Collects a monkey bomb when clicked
+            function collectBomb(bombId, bombElement) {
+                if (foundBombs.has(bombId)) {
+                    console.log("⚠️ Bomb already collected:", bombId);
+                    return;
+                }
+
+                console.log("💥 Bomb collected:", bombId);
+
+                // Mark as found
+                foundBombs.add(bombId);
+
+                // Animate collection
+                bombElement.classList.add("found");
+
+                // Remove after animation
+                setTimeout(() => {
+                    bombElement.remove();
+                }, 500);
+
+                // Update counter
+                updateBombCounter();
+
+                // Check if all bombs found
+                if (foundBombs.size === totalBombs) {
+                    setTimeout(showJinxCelebration, 800);
+                }
+            }
+
+            // Updates the bomb counter UI
+            function updateBombCounter() {
+                const foundCount = foundBombs.size;
+
+                // Update counter text
+                const counterEl = document.getElementById("bombsFound");
+                counterEl.textContent = foundCount;
+
+                // Animate counter
+                counterEl.style.transform = "scale(1.5)";
+                counterEl.style.color = "#ffd700";
+                setTimeout(() => {
+                    counterEl.style.transform = "scale(1)";
+                    counterEl.style.color = "#fbbf24"; // yellow-400
+                }, 300);
+
+                // Make counter more visible as bombs are found
+                const bombCounter = document.getElementById("bombCounter");
+                bombCounter.style.opacity =
+                    0.7 + (foundCount / totalBombs) * 0.3;
+
+                console.log(
+                    `💣 Progress: ${foundCount}/${totalBombs} monkey bombs found`,
+                );
+            }
+
+            // Shows Jinx celebration when all bombs are found
+            function showJinxCelebration() {
+                console.log("🎉 ALL MONKEY BOMBS FOUND!");
+
+                const modal = document.getElementById("storyModal");
+                const iconEl = document.getElementById("modalIcon");
+                const titleEl = document.getElementById("modalTitle");
+                const storyEl = document.getElementById("modalStory");
+
+                // Random Jinx quote
+                const randomQuote =
+                    jinxQuotes[Math.floor(Math.random() * jinxQuotes.length)];
+
+                iconEl.textContent = "👍";
+                iconEl.style.fontSize = "120px";
+                titleEl.textContent = "All Monkey Bombs Found!";
+                storyEl.innerHTML = `
+                <div style="text-align: center;">
+                    <p style="font-size: 20px; font-weight: bold; color: #ffd700; margin-bottom: 20px;">
+                        🎉 BOOM! 🎉
+                    </p>
+                    <p style="font-size: 18px; font-style: italic; color: #ff1493; margin-bottom: 20px;">
+                        "${randomQuote}"
+                    </p>
+                    <p style="font-size: 16px; color: #aaa;">
+                        - Jinx
+                    </p>
+                    <div style="margin-top: 30px; padding: 15px; background: rgba(255, 215, 0, 0.1); border: 2px solid #ffd700; border-radius: 10px;">
+                        <p style="font-size: 14px; color: #ffd700;">
+                            🏆 Secret Achievement Unlocked: "Explosive Collector"
+                        </p>
+                    </div>
+                </div>
+            `;
+
+                // Create golden confetti
+                createGoldenConfetti();
+
+                // Shake screen
+                document.body.classList.add("screen-shake");
+                setTimeout(() => {
+                    document.body.classList.remove("screen-shake");
+                }, 500);
+
+                modal.classList.add("active");
+
+                console.log("💥 Jinx says:", randomQuote);
+            }
+
+            // Creates golden confetti for bomb completion
+            function createGoldenConfetti() {
+                const colors = ["#ffd700", "#ffed4e", "#ffa500", "#ff8c00"];
+                const particleCount = 80;
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = document.createElement("div");
+                    particle.style.cssText = `
+                    position: fixed;
+                    width: 12px;
+                    height: 12px;
+                    background: ${colors[Math.floor(Math.random() * colors.length)]};
+                    border-radius: 50%;
+                    pointer-events: none;
+                    z-index: 9999;
+                    left: 50%;
+                    top: 50%;
+                    box-shadow: 0 0 10px currentColor;
+                `;
+                    document.body.appendChild(particle);
+
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * 800 + 400;
+                    const duration = Math.random() * 2000 + 1000;
+
+                    const endX = Math.cos(angle) * distance;
+                    const endY = Math.sin(angle) * distance;
+
+                    particle.animate(
+                        [
+                            {
+                                transform: "translate(0, 0) scale(1)",
+                                opacity: 1,
+                            },
+                            {
+                                transform: `translate(${endX}px, ${endY}px) scale(0)`,
+                                opacity: 0,
+                            },
+                        ],
+                        {
+                            duration: duration,
+                            easing: "cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                        },
+                    ).onfinish = () => particle.remove();
+                }
+            }
+
+            // ============================================
+            // PLAYER CARD SYSTEM (Reward for completion)
+            // ============================================
+
+            // Opens the player card modal
+            function openPlayerCard() {
+                console.log("🎴 Opening player card...");
+
+                const modal = document.getElementById("playerCardModal");
+
+                // Load card data
+                loadPlayerCard();
+
+                modal.classList.add("active");
+            }
+
+            // Loads and displays the player card
+            function loadPlayerCard() {
+                const container = document.getElementById("playerCardContent");
+
+                // Check if we have player data
+                if (!playerData || !playerData.playerInfo) {
+                    container.innerHTML = `
+                    <div style="text-align: center;">
+                        <p style="color: #ff1493; font-size: 16px;">❌ No player data found</p>
+                        <p style="color: #aaa; font-size: 14px;">Please try refreshing the page</p>
+                    </div>
+                `;
+                    return;
+                }
+
+                // Prepare data for card generation
+                const cardData = {
+                    playerInfo: playerData.playerInfo,
+                    zones: playerData.zones,
+                    metadata: playerData.metadata,
+                    storyMode: playerData.storyMode || "coach",
+                };
+
+                console.log("📊 Card data prepared:", cardData);
+
+                // TODO: Your friend will replace this with actual card rendering
+                // For now, show a placeholder that your friend can work with
+                container.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <p style="color: #00d4ff; font-size: 18px; font-weight: bold; margin-bottom: 15px;">
+                        Player Card Ready!
+                    </p>
+                    <p style="color: #aaa; font-size: 14px; margin-bottom: 20px;">
+                        ${playerData.playerInfo.gameName}#${playerData.playerInfo.tagLine}
+                    </p>
+                    <div style="
+                        background: rgba(0, 212, 255, 0.1);
+                        border: 2px dashed #00d4ff;
+                        border-radius: 10px;
+                        padding: 30px;
+                        margin: 20px 0;
+                    ">
+                        <p style="color: #888; font-size: 14px;">
+                            🎴 Card Component Goes Here 🎴
+                        </p>
+                        <p style="color: #666; font-size: 12px; margin-top: 10px;">
+                            (Your friend will inject the card component here)
+                        </p>
+                    </div>
+                </div>
+            `;
+
+                // Store card data globally so your friend can access it
+                window.riftRewindCardData = cardData;
+            }
+
+            // Closes the player card modal
+            function closePlayerCard() {
+                const modal = document.getElementById("playerCardModal");
+                modal.classList.remove("active");
+                console.log("✅ Player card closed");
+            }
+
+            // Downloads the player card as an image
+            function downloadCard() {
+                console.log("📥 Download card clicked");
+
+                // TODO: Your friend will implement this
+                // This should capture the card element and download it as PNG
+                alert(
+                    "Download functionality will be implemented by your teammate!\n\nThis will save the card as an image.",
+                );
+            }
+
+            // Copies shareable link to clipboard
+            function copyCardLink() {
+                console.log("🔗 Copy link clicked");
+
+                // Generate shareable URL (you can customize this)
+                const playerName = playerData.playerInfo.gameName;
+                const tagLine = playerData.playerInfo.tagLine;
+                const shareUrl = `${window.location.origin}${window.location.pathname}?player=${playerName}-${tagLine}`;
+
+                // Copy to clipboard
+                navigator.clipboard
+                    .writeText(shareUrl)
+                    .then(() => {
+                        // Show success feedback
+                        const btn = event.target;
+                        const originalText = btn.textContent;
+                        btn.textContent = "✅ Copied!";
+                        btn.style.background = "#00d4ff";
+                        btn.style.color = "white";
+
+                        setTimeout(() => {
+                            btn.textContent = originalText;
+                            btn.style.background = "";
+                            btn.style.color = "";
+                        }, 2000);
+                    })
+                    .catch((err) => {
+                        console.error("Failed to copy:", err);
+                        alert("Failed to copy link to clipboard");
+                    });
+            }
+
+            // Shares to Twitter
+            function shareToTwitter() {
+                console.log("🐦 Share to Twitter clicked");
+
+                const playerName = playerData.playerInfo.gameName;
+                const tagLine = playerData.playerInfo.tagLine;
+                const storyMode =
+                    playerData.storyMode === "roast" ? "🔥" : "🎓";
+
+                const tweetText = `Just discovered all zones in my Rift Rewind! ${storyMode}\n\nCheck out my performance card for ${playerName}#${tagLine}\n\n#RiftRewind #LeagueOfLegends`;
+                const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+
+                window.open(tweetUrl, "_blank");
+            }
+
+            // ============================================
+            // MODAL SYSTEM
+            // ============================================
+
+            // Shows the story modal with portal effect + EXPLOSIONS
+            function showModal(title, story, emoji) {
+                const modal = document.getElementById("storyModal");
+                const iconEl = document.getElementById("modalIcon");
+                const titleEl = document.getElementById("modalTitle");
+                const storyEl = document.getElementById("modalStory");
+
+                iconEl.textContent = emoji || "🎯";
+                iconEl.style.fontSize = "100px"; // Reset to default
+                titleEl.textContent = title;
+                storyEl.textContent = story;
+
+                // SHAKE THE SCREEN!
+                document.body.classList.add("screen-shake");
+                setTimeout(() => {
+                    document.body.classList.remove("screen-shake");
+                }, 500);
+
+                // CREATE EXPLOSION PARTICLES!
+                createExplosion();
+
+                modal.classList.add("active");
+
+                console.log("💥 EXPLOSION! Portal opened for:", title);
+            }
+
+            // Creates explosion particles
+            function createExplosion() {
+                const particleCount = 30; // Reduced from 50 for performance
+                const colors = [
+                    "#ff1493",
+                    "#00d4ff",
+                    "#9b30ff",
+                    "#ffffff",
+                    "#ff6b9d",
+                ];
+
+                for (let i = 0; i < particleCount; i++) {
+                    setTimeout(() => {
+                        const particle = document.createElement("div");
+                        particle.className = "explosion-particle";
+
+                        const color =
+                            colors[Math.floor(Math.random() * colors.length)];
+                        particle.style.backgroundColor = color;
+                        particle.style.boxShadow = `0 0 20px ${color}`;
+
+                        // Start from center of screen
+                        particle.style.left = "50%";
+                        particle.style.top = "50%";
+
+                        document.body.appendChild(particle);
+
+                        // Random direction
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = Math.random() * 500 + 300;
+                        const duration = Math.random() * 1000 + 500;
+
+                        const endX = Math.cos(angle) * distance;
+                        const endY = Math.sin(angle) * distance;
+
+                        // Animate particle flying out
+                        particle.animate(
+                            [
+                                {
+                                    transform: "translate(-50%, -50%) scale(1)",
+                                    opacity: 1,
+                                },
+                                {
+                                    transform: `translate(calc(-50% + ${endX}px), calc(-50% + ${endY}px)) scale(0)`,
+                                    opacity: 0,
+                                },
+                            ],
+                            {
+                                duration: duration,
+                                easing: "cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                            },
+                        ).onfinish = () => particle.remove();
+                    }, i * 5); // Stagger particle creation
+                }
+            }
+
+            // Closes the modal
+            function closeModal() {
+                const modal = document.getElementById("storyModal");
+                modal.classList.remove("active");
+
+                console.log("❌ Modal closed");
+            }
+
+            // Close modal when clicking outside
+            document.addEventListener("click", (e) => {
+                const modal = document.getElementById("storyModal");
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+
+            // ============================================
+            // DEBUG MODE - Help position zones
+            // ============================================
+
+            if (DEBUG_MODE) {
+                console.log(
+                    "🔧 DEBUG MODE ENABLED - Click on map to get coordinates!",
+                );
+
+                // Click on map to get coordinates
+                document.addEventListener("click", (e) => {
+                    // Calculate position on the map (accounting for zoom and pan)
+                    const screenWidth = window.innerWidth;
+                    const screenHeight = window.innerHeight;
+
+                    // Get position relative to screen
+                    const screenX = e.clientX;
+                    const screenY = e.clientY;
+
+                    // Convert to percentage of screen
+                    const percentX = (screenX / screenWidth) * 100;
+                    const percentY = (screenY / screenHeight) * 100;
+
+                    console.log(
+                        `📍 CLICK POSITION: x: ${percentX.toFixed(1)}%, y: ${percentY.toFixed(1)}%`,
+                    );
+                    console.log(`   Use these values in zonePositions!`);
+                });
+            }
+
+            // ============================================
+            // RUN ON PAGE LOAD
+            // ============================================
+
+            window.addEventListener("load", () => {
+                initializePage();
+            });
+        </script>
+    </body>
+</html>

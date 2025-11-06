@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vi's Coaching Session - Rift Rewind</title>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <style>
+        /* ============================================
+           BASE STYLES
+           ============================================ */
+        body {
+            font-family: "Inter", sans-serif;
+            background: linear-gradient(135deg, #1a0e0e 0%, #2d1414 50%, #1a0e0e 100%);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid rgba(255, 69, 0, 0.3);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-family: 'Cinzel', serif;
+            font-size: 24px;
+            font-weight: 900;
+            background: linear-gradient(45deg, #ff4500, #ff8c00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 69, 0, 0.5);
+        }
+
+        .btn-back {
+            padding: 10px 20px;
+            background: rgba(255, 69, 0, 0.2);
+            border: 2px solid #ff4500;
+            color: #ff4500;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-back:hover {
+            background: #ff4500;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        /* ============================================
+           MAIN LAYOUT - Split View
+           ============================================ */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 70px);
+            gap: 0;
+        }
+
+        /* ============================================
+           LEFT SIDE - Match History
+           ============================================ */
+        .match-list-container {
+            width: 400px;
+            background: rgba(0, 0, 0, 0.5);
+            border-right: 2px solid rgba(255, 69, 0, 0.3);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .match-list-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff8c00;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(255, 140, 0, 0.3);
+        }
+
+        .match-card {
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(255, 69, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .match-card:hover {
+            background: rgba(255, 69, 0, 0.1);
+            border-color: #ff4500;
+            transform: translateX(5px);
+        }
+
+        .match-card.selected {
+            background: rgba(255, 69, 0, 0.2);
+            border-color: #ff8c00;
+            box-shadow: 0 0 20px rgba(255, 69, 0, 0.4);
+        }
+
+        .match-result-win {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .match-result-loss {
+            color: #f87171;
+            font-weight: bold;
+        }
+
+        /* ============================================
+           RIGHT SIDE - AI Chat
+           ============================================ */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+        }
+
+        .chat-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(255, 140, 0, 0.3);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 15px;
+            border: 2px solid rgba(255, 69, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message-user {
+            align-items: flex-end;
+        }
+
+        .message-ai {
+            align-items: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 15px;
+            line-height: 1.6;
+        }
+
+        .message-user .message-bubble {
+            background: linear-gradient(135deg, #ff4500, #ff8c00);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message-ai .message-bubble {
+            background: rgba(255, 140, 0, 0.15);
+            border: 1px solid rgba(255, 140, 0, 0.4);
+            color: #fff;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        /* ============================================
+           CHAT INPUT
+           ============================================ */
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(255, 69, 0, 0.4);
+            border-radius: 10px;
+            color: white;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .chat-input:focus {
+            border-color: #ff8c00;
+            background: rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 20px rgba(255, 140, 0, 0.3);
+        }
+
+        .chat-input::placeholder {
+            color: #888;
+        }
+
+        .btn-send {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #ff4500, #ff8c00);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-send:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 140, 0, 0.6);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ============================================
+           SCROLLBAR STYLING
+           ============================================ */
+        .match-list-container::-webkit-scrollbar,
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .match-list-container::-webkit-scrollbar-track,
+        .chat-messages::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .match-list-container::-webkit-scrollbar-thumb,
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 69, 0, 0.5);
+            border-radius: 4px;
+        }
+
+        .match-list-container::-webkit-scrollbar-thumb:hover,
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 140, 0, 0.7);
+        }
+
+        /* ============================================
+           LOADING ANIMATION
+           ============================================ */
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 15px 20px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #ff8c00;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.7;
+            }
+            30% {
+                transform: translateY(-10px);
+                opacity: 1;
+            }
+        }
+
+        /* ============================================
+           EMPTY STATE
+           ============================================ */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #888;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ==========================================
+         HEADER
+         ========================================== -->
+    <header class="header">
+        <div>
+            <h1 class="header-title">👊 VI'S COACHING SESSION</h1>
+            <p style="color: #888; font-size: 14px; margin-top: 5px;">Direct. Effective. No nonsense.</p>
+        </div>
+        <button class="btn-back" onclick="goBack()">
+            ← Back to Start
+        </button>
+    </header>
+
+    <!-- ==========================================
+         MAIN SPLIT VIEW
+         ========================================== -->
+    <div class="main-container">
+        <!-- LEFT SIDE: Match History -->
+        <div class="match-list-container">
+            <div class="match-list-title">
+                📊 Your Recent Matches
+            </div>
+            <div id="matchList">
+                <!-- Matches will be populated here -->
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    <p>Loading your matches...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT SIDE: AI Chat -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2 style="font-size: 20px; font-weight: bold; color: #ff8c00; margin-bottom: 5px;">
+                    AI Coach
+                </h2>
+                <p style="color: #aaa; font-size: 14px;" id="playerInfo">
+                    Ask me anything about your performance
+                </p>
+            </div>
+
+            <!-- Chat Messages -->
+            <div class="chat-messages" id="chatMessages">
+                <!-- Welcome message -->
+                <div class="message message-ai">
+                    <div class="message-label">Vi's AI Coach</div>
+                    <div class="message-bubble">
+                        <strong>Hey there.</strong> I've analyzed your recent matches. Ask me anything - where you're messing up, how to improve your macro, whatever you need. No sugarcoating, just results.
+                        <br><br>
+                        <em>Try asking: "What are my biggest weaknesses?" or "How can I improve my mid lane performance?"</em>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Input -->
+            <div class="chat-input-container">
+                <input
+                    type="text"
+                    id="chatInput"
+                    class="chat-input"
+                    placeholder="Ask Vi for coaching advice..."
+                    onkeypress="handleKeyPress(event)"
+                />
+                <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+                    Send 💬
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================
+        // BACKEND INTEGRATION GUIDE FOR YOUR TEAMMATE
+        // ====================================================
+        //
+        // Two main TODOs:
+        //
+        // 1. MATCH HISTORY: Implement getPlayerMatches() function (line ~520)
+        //    - Returns array of match objects with: result, champion, kda, cs, etc.
+        //    - Use playerData from localStorage
+        //
+        // 2. AI CHAT: Implement POST /api/coach endpoint
+        //    - Receives: message, playerData, conversationHistory, selectedMatch
+        //    - Returns: { response: "AI coaching text" }
+        //
+        // Everything else (UI, animations, chat flow) is already done!
+        // ====================================================
+
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const API_URL = "http://localhost:5000";
+        let playerData = null;
+        let selectedMatch = null;
+        let conversationHistory = [];
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        window.addEventListener('load', () => {
+            console.log("👊 Vi's Coaching Session Loading...");
+            loadPlayerData();
+            displayMatches();
+        });
+
+        // ============================================
+        // DATA LOADING
+        // ============================================
+
+        function loadPlayerData() {
+            const rawData = localStorage.getItem('rewindData');
+
+            if (!rawData) {
+                console.error("❌ No player data found");
+                alert("No player data found. Please analyze a player first!");
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                playerData = JSON.parse(rawData);
+                console.log("✅ Player data loaded:", playerData);
+
+                // Update header
+                if (playerData.playerInfo) {
+                    document.getElementById('playerInfo').textContent =
+                        `Coaching ${playerData.playerInfo.gameName}#${playerData.playerInfo.tagLine}`;
+                }
+            } catch (error) {
+                console.error("❌ Error parsing player data:", error);
+                alert("Error loading player data");
+                window.location.href = "index.html";
+            }
+        }
+
+        // ============================================
+        // MATCH HISTORY DISPLAY
+        // ============================================
+
+        function displayMatches() {
+            const matchList = document.getElementById('matchList');
+
+            // ====================================================
+            // TODO FOR BACKEND TEAM: Replace this with real data
+            // ====================================================
+            // Expected data structure:
+            // matches = [
+            //   {
+            //     result: 'win' or 'loss',
+            //     champion: 'Champion Name',
+            //     championIcon: '🦊' (emoji or image URL),
+            //     kda: '12/3/8' (kills/deaths/assists),
+            //     cs: '245' (creep score),
+            //     duration: '32:15' (match time),
+            //     role: 'Mid' (or Top, Jungle, ADC, Support),
+            //     timeAgo: '2 hours ago' (formatted time)
+            //   }
+            // ]
+            const matches = getPlayerMatches(); // <-- REPLACE THIS FUNCTION
+
+            if (matches.length === 0) {
+                matchList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No matches found</p>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                            Match history will appear here
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            matchList.innerHTML = matches.map((match, index) => `
+                <div class="match-card" onclick="selectMatch(${index})">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span class="match-result-${match.result}">
+                            ${match.result === 'win' ? '✓ Victory' : '✗ Defeat'}
+                        </span>
+                        <span style="color: #888; font-size: 12px;">
+                            ${match.timeAgo}
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div style="font-size: 32px;">
+                            ${match.championIcon}
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">
+                                ${match.champion}
+                            </div>
+                            <div style="color: #aaa; font-size: 13px;">
+                                ${match.kda} KDA • ${match.cs} CS
+                            </div>
+                            <div style="color: #888; font-size: 12px;">
+                                ${match.duration} • ${match.role}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ====================================================
+        // TODO FOR BACKEND TEAM: Implement this function
+        // ====================================================
+        // This should return match data from playerData or API
+        function getPlayerMatches() {
+            // PLACEHOLDER DATA - Remove this and return real matches
+            return [
+                {
+                    result: 'win',
+                    champion: 'Ahri',
+                    championIcon: '🦊',
+                    kda: '12/3/8',
+                    cs: '245',
+                    duration: '32:15',
+                    role: 'Mid',
+                    timeAgo: '2 hours ago'
+                },
+                {
+                    result: 'loss',
+                    champion: 'Yasuo',
+                    championIcon: '⚔️',
+                    kda: '5/8/6',
+                    cs: '198',
+                    duration: '28:42',
+                    role: 'Mid',
+                    timeAgo: '5 hours ago'
+                },
+                {
+                    result: 'win',
+                    champion: 'Zed',
+                    championIcon: '🥷',
+                    kda: '18/4/5',
+                    cs: '267',
+                    duration: '35:20',
+                    role: 'Mid',
+                    timeAgo: '1 day ago'
+                }
+            ];
+
+            // Example implementation:
+            // if (!playerData || !playerData.metadata || !playerData.metadata.matches) {
+            //     return [];
+            // }
+            // return playerData.metadata.matches.map(match => ({
+            //     result: match.win ? 'win' : 'loss',
+            //     champion: match.championName,
+            //     championIcon: getChampionEmoji(match.championName),
+            //     kda: `${match.kills}/${match.deaths}/${match.assists}`,
+            //     cs: match.totalMinionsKilled.toString(),
+            //     duration: formatDuration(match.gameDuration),
+            //     role: match.role,
+            //     timeAgo: formatTimeAgo(match.gameCreation)
+            // }));
+        }
+
+        function selectMatch(index) {
+            selectedMatch = index;
+
+            // Update visual selection
+            const matchCards = document.querySelectorAll('.match-card');
+            matchCards.forEach((card, i) => {
+                if (i === index) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+
+            console.log("📊 Match selected:", index);
+        }
+
+        // ============================================
+        // CHAT FUNCTIONALITY
+        // ============================================
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Add user message to chat
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Disable input while processing
+            input.disabled = true;
+            sendBtn.disabled = true;
+
+            // Show typing indicator
+            showTypingIndicator();
+
+            try {
+                // Call backend AI
+                const response = await callAICoach(message);
+
+                // Remove typing indicator
+                removeTypingIndicator();
+
+                // Add AI response
+                addMessage(response, 'ai');
+
+            } catch (error) {
+                console.error("❌ Error calling AI:", error);
+                removeTypingIndicator();
+                addMessage("Sorry, I couldn't process that. Try again.", 'ai');
+            } finally {
+                // Re-enable input
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
+            }
+        }
+
+        function addMessage(text, sender) {
+            const messagesContainer = document.getElementById('chatMessages');
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${sender}`;
+
+            const label = sender === 'user' ? 'You' : "Vi's AI Coach";
+
+            messageDiv.innerHTML = `
+                <div class="message-label">${label}</div>
+                <div class="message-bubble">${escapeHtml(text)}</div>
+            `;
+
+            messagesContainer.appendChild(messageDiv);
+
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Add to conversation history
+            conversationHistory.push({
+                role: sender,
+                content: text,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function showTypingIndicator() {
+            const messagesContainer = document.getElementById('chatMessages');
+
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message message-ai';
+            typingDiv.id = 'typingIndicator';
+
+            typingDiv.innerHTML = `
+                <div class="message-label">Vi's AI Coach</div>
+                <div class="message-bubble">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        // ============================================
+        // AI BACKEND INTEGRATION
+        // ============================================
+
+        // ====================================================
+        // TODO FOR BACKEND TEAM: Implement AI coaching endpoint
+        // ====================================================
+        // Endpoint: POST /api/coach
+        //
+        // Request body will include:
+        // {
+        //   message: "user's question",
+        //   playerData: { playerInfo, zones, metadata, storyMode },
+        //   conversationHistory: [ {role, content, timestamp}, ... ],
+        //   selectedMatch: index or null
+        // }
+        //
+        // Expected response:
+        // {
+        //   response: "AI coaching advice text"
+        // }
+        async function callAICoach(userMessage) {
+            console.log("🤖 Calling AI with message:", userMessage);
+
+            // Prepare request data
+            const requestData = {
+                message: userMessage,
+                playerData: {
+                    playerInfo: playerData.playerInfo,
+                    zones: playerData.zones,
+                    metadata: playerData.metadata,
+                    storyMode: playerData.storyMode
+                },
+                conversationHistory: conversationHistory,
+                selectedMatch: selectedMatch
+            };
+
+            // ====================================================
+            // BACKEND TEAM: Implement this API endpoint
+            // ====================================================
+            const response = await fetch(`${API_URL}/api/coach`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`AI request failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.response || data.message;
+        }
+
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function goBack() {
+            window.location.href = "index.html";
+        }
+    </script>
+</body>
+</html>
