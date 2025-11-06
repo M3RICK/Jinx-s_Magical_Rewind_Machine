@@ -1,6 +1,6 @@
 import boto3
 from botocore.exceptions import ClientError
-from db_handshake import get_dynamodb_reasources
+from db_handshake import get_dynamodb_resources
 
 TABLE_CONFIGS = [
     {
@@ -98,7 +98,7 @@ TABLE_CONFIGS = [
 
 
 def create_table(table_config):
-    dynamodb = get_dynamodb_reasources()
+    dynamodb = get_dynamodb_resources()
     table_name = table_config['name']
 
     # Check if table already exists

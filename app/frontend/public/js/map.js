@@ -640,7 +640,7 @@ async function handleRefresh() {
         const { gameName, tagLine, riot_id } = playerData.playerInfo;
         const riotIdFormatted = riot_id ? riot_id.replace('#', '-') : `${gameName}-${tagLine}`;
 
-        const response = await fetch(`http://localhost:5000/api/refresh/${riotIdFormatted}`, {
+        const response = await fetch(`/api/refresh/${riotIdFormatted}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });

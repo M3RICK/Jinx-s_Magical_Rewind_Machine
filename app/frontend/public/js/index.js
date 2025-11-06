@@ -7,7 +7,7 @@ async function sendForm(e)
         server: document.getElementById("server").value,
     };
 
-    const res = await fetch("http://localhost:5000/api/rewind", {
+    const res = await fetch("/api/rewind", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(data),

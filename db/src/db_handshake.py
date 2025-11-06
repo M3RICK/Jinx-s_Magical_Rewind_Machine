@@ -4,19 +4,19 @@ import os
 
 load_dotenv()
 
-def get_dynamodb_reasources():
+def get_dynamodb_resources():
     region = os.getenv('AWS_DEFAULT_REGION')
 
     if not region:
         raise ValueError(
             "AWS_DEFAULT_REGION not found in environment variables! "
-            "Make sure .env file exists and contains the correct reigon"
+            "Make sure .env file exists and contains the correct region"
         )
     return boto3.resource('dynamodb', region_name=region)
 
 def test_dynamodb_connection():
     try:
-        dynamodb = get_dynamodb_reasources()
+        dynamodb = get_dynamodb_resources()
         client = dynamodb.meta.client
         response = client.list_tables()
 

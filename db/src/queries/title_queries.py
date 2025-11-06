@@ -1,10 +1,10 @@
 import time
-from ..db_handshake import get_dynamodb_reasources
+from ..db_handshake import get_dynamodb_resources
 from .db_utils import convert_floats_to_decimal, convert_decimals_to_float
 
 
 def get_table():
-    dynamodb = get_dynamodb_reasources()
+    dynamodb = get_dynamodb_resources()
     return dynamodb.Table('PlayerTitles')
 
 

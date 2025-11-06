@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
+import base64
 import os
 import sys
 import asyncio
@@ -7,63 +7,43 @@ import traceback
 import time
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
 
+from app.backend.src.image_creation import RewindExportProfil, RewindCardGeneration
+from API.models.player import Player
+from API.analytics.zones.zone_analyzer import analyze_player_zones
+from API.story.story_generator import generate_all_stories
+from app.backend.src.utils.input_validator import (
+    validate_game_name, validate_tag_line, validate_platform,
+    validate_match_count, validate_story_mode, validate_riot_id,
+    validate_zone_id, sanitize_string
+)
+
 # Import AI chat functionality (for /api/coach endpoint)
-from app.backend.src.ai_chat import create_chat, SYSTEM_PROMPT, set_player_puuid
-from app.backend.src.league_tools import TOOL_DEFINITIONS, execute_tool
+from app.backend.src.ai_chat import create_chat, SYSTEM_PROMPT
+from league_tools import TOOL_DEFINITIONS, execute_tool, set_player_puuid
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 import json
 
-# Map-related imports (only needed for /api/analyze endpoint - your friend's code)
-try:
-    from API.models.player import Player
-    from API.analytics.zones.zone_analyzer import analyze_player_zones
-    from API.story.story_generator import generate_all_stories
-    MAP_FEATURES_AVAILABLE = True
-except ImportError as e:
-    print(f"Warning: Map features not available: {e}")
-    MAP_FEATURES_AVAILABLE = False
-
-# Check if we should use mock DB
-USE_MOCK_DB = os.getenv('USE_MOCK_DB', 'false').lower() == 'true'
-
-if USE_MOCK_DB:
-    print("\n" + "="*60)
-    print("🔧 MOCK DB MODE ENABLED - Zero AWS costs!")
-    print("="*60 + "\n")
-    from testing.mocks.mock_db import (
-        MockPlayerRepository as PlayerRepository,
-        store_all_stories, get_all_stories, is_story_fresh,
-        delete_all_stories, get_story, check_story_mode
-    )
-    player_repo = PlayerRepository()
-else:
-    print("\n" + "="*60)
-    print("☁️  REAL DB MODE - Using AWS DynamoDB")
-    print("="*60 + "\n")
-    from db.src.queries.story_queries import (
-        get_all_stories, store_all_stories, is_story_fresh, delete_all_stories, get_story, check_story_mode
-    )
-    from db.src.repositories.player_repository import PlayerRepository
-    from db.src.repositories.session_repository import SessionRepository
-    from db.src.repositories.conversation_repository import ConversationRepository
-    from db.src.db_handshake import get_dynamodb_reasources
-    dynamodb = get_dynamodb_reasources()
-    player_repo = PlayerRepository(dynamodb)
-    session_repo = SessionRepository(dynamodb)
-    conversation_repo = ConversationRepository(dynamodb)
+# Using AWS DynamoDB for production
+from db.src.queries.story_queries import (
+    get_all_stories, store_all_stories, is_story_fresh, delete_all_stories, get_story, check_story_mode
+)
+from db.src.repositories.player_repository import PlayerRepository
+from db.src.repositories.session_repository import SessionRepository
+from db.src.repositories.conversation_repository import ConversationRepository
+from db.src.db_handshake import get_dynamodb_resources
+dynamodb = get_dynamodb_resources()
+player_repo = PlayerRepository(dynamodb)
+session_repo = SessionRepository(dynamodb)
+conversation_repo = ConversationRepository(dynamodb)
 
 app = Flask(__name__)
-CORS(app)
 
-# Frontend paths relative to this file
-FRONTEND_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../frontend/src'))
-PUBLIC_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../frontend/public'))
+# Serve everything from public folder (HTML, CSS, JS, assets)
+PUBLIC_FOLDER = os.path.join(os.path.dirname(__file__), '../../frontend/public')
 
 VALID_PLATFORMS = [
     'euw1', 'eun1', 'na1', 'kr', 'br1', 'la1', 'la2', 'oc1',
@@ -71,6 +51,7 @@ VALID_PLATFORMS = [
 ]
 MIN_MATCH_COUNT = 5
 MAX_MATCH_COUNT = 50
+MAX_REQUEST_SIZE = 1024 * 10
 
 
 # Utility: Convert riot_id format (URL-safe to standard)
@@ -99,31 +80,8 @@ def run_async(coro):
 
 
 @app.route('/')
-@app.route('/index.html')
 def index():
-    return send_from_directory(FRONTEND_FOLDER, 'index.html')
-
-
-@app.route('/coaching_session.html')
-def coaching_session():
-    return send_from_directory(FRONTEND_FOLDER, 'coaching_session.html')
-
-
-@app.route('/interactive_map.html')
-def interactive_map():
-    return send_from_directory(FRONTEND_FOLDER, 'interactive_map.html')
-
-
-@app.route('/public/<path:filename>')
-def static_files(filename):
-    return send_from_directory(PUBLIC_FOLDER, filename)
-
-
-@app.route('/assets/<path:filename>')
-def serve_assets(filename):
-    """Serve static assets (images, icons, etc.)"""
-    assets_folder = os.path.join(FRONTEND_FOLDER, 'assets')
-    return send_from_directory(assets_folder, filename)
+    return send_from_directory(PUBLIC_FOLDER, 'index.html')
 
 
 @app.route('/health', methods=['GET'])
@@ -131,8 +89,8 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'version': '1.0.0',
-        'database': 'mock' if USE_MOCK_DB else 'dynamodb',
-        'ai': 'mock' if os.getenv('USE_MOCK_AI', 'false').lower() == 'true' else 'bedrock'
+        'database': 'dynamodb',
+        'ai': 'bedrock'
     }), 200
 
 
@@ -172,7 +130,7 @@ def authenticate_player():
         print(f"\nAuthenticating player: {riot_id} on {platform}")
 
         # Use existing CLI logic to check/build player
-        from app.html_ai.client_check import check_and_build_client
+        from app.cli.client_check import check_and_build_client
 
         # Map platform to region
         platform_to_region = {
@@ -259,7 +217,8 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                     if is_story_fresh(puuid, 'intro', max_age_seconds=604800):
                         # Check if cached mode matches requested mode
                         if check_story_mode(puuid, story_mode):
-                            print(f"Using cached stories for {riot_id} ({story_mode.upper()} mode)")
+                            mode_emoji = "🎓" if story_mode == 'coach' else "🔥"
+                            print(f"✅ Using cached stories for {riot_id} ({mode_emoji} {story_mode.upper()} mode)")
 
                             cached_stories = get_all_stories(puuid)
 
@@ -272,15 +231,6 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                                     'stats': story.get('stats', {})
                                 }
 
-                            # Create or reuse session token
-                            session_token = None
-                            if not USE_MOCK_DB:
-                                from db.src.models.session import Session
-                                session = Session.create_new(puuid=puuid, riot_id=riot_id, expiry_days=7)
-                                session_repo.create_session(session)
-                                session_token = session.session_token
-                                print(f"Created session token for cached player {riot_id}")
-
                             return ({
                                 'player': {
                                     'puuid': puuid,
@@ -291,8 +241,7 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                                     'cached': True,
                                     'story_mode': story_mode,
                                     'generated_at': cached_stories[0].get('generated_at') if cached_stories else int(time.time())
-                                },
-                                'session_token': session_token
+                                }
                             }, None, 200)
                         else:
                             # Mode mismatch - delete old cache and regenerate
@@ -335,18 +284,9 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                 stories = generate_all_stories(zone_stats, story_mode=story_mode)
 
                 # Store in DB with story mode
-                session_token = None
                 if player.puuid:
                     stored = store_all_stories(player.puuid, stories, story_mode=story_mode)
                     print(f"Stored {len(stored)} stories for {riot_id} in {story_mode.upper()} mode")
-
-                    # Create session token for this player
-                    if not USE_MOCK_DB:
-                        from db.src.models.session import Session
-                        session = Session.create_new(puuid=player.puuid, riot_id=riot_id, expiry_days=7)
-                        session_repo.create_session(session)
-                        session_token = session.session_token
-                        print(f"Created session token for {riot_id}")
 
                 return {
                     'player': {
@@ -362,8 +302,7 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                         'generated_at': int(time.time()),
                         'cached': False,
                         'story_mode': story_mode
-                    },
-                    'session_token': session_token
+                    }
                 }, None
 
         result, error = run_async(analyze())
@@ -385,25 +324,10 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_player():
-    """
-    Main endpoint: Analyze player and generate zone stories.
-
-    Request:
-        {
-            "gameName": "theoppstopper",
-            "tagLine": "bigra",
-            "platform": "euw1",
-            "matchCount": 30  // optional, default 30
-        }
-
-    Response:
-        {
-            "player": {...},
-            "zones": {...},
-            "metadata": {...}
-        }
-    """
     try:
+        if request.content_length and request.content_length > MAX_REQUEST_SIZE:
+            return jsonify({'error': 'Request too large'}), 413
+
         data = request.get_json(silent=True)
         if not data:
             return jsonify({'error': 'Invalid JSON or missing Content-Type header'}), 400
@@ -414,28 +338,33 @@ def analyze_player():
         match_count = data.get('matchCount', 30)
         story_mode = data.get('storyMode', 'coach')
 
-        if not game_name or not tag_line:
-            return jsonify({'error': 'gameName and tagLine are required'}), 400
+        is_valid, error = validate_game_name(game_name)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if not isinstance(game_name, str) or not isinstance(tag_line, str):
-            return jsonify({'error': 'gameName and tagLine must be strings'}), 400
+        is_valid, error = validate_tag_line(tag_line)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if platform not in VALID_PLATFORMS:
-            return jsonify({'error': f'Invalid platform. Must be one of: {", ".join(VALID_PLATFORMS)}'}), 400
+        is_valid, error = validate_platform(platform, VALID_PLATFORMS)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        try:
-            match_count = int(match_count)
-            if match_count < MIN_MATCH_COUNT or match_count > MAX_MATCH_COUNT:
-                return jsonify({'error': f'matchCount must be between {MIN_MATCH_COUNT} and {MAX_MATCH_COUNT}'}), 400
-        except (ValueError, TypeError):
-            return jsonify({'error': 'matchCount must be a valid number'}), 400
+        is_valid, error, match_count = validate_match_count(match_count, MIN_MATCH_COUNT, MAX_MATCH_COUNT)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if story_mode not in ['coach', 'roast']:
+        is_valid, error = validate_story_mode(story_mode)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+        if not story_mode:
             story_mode = 'coach'
+
+        game_name = sanitize_string(game_name, 16)
+        tag_line = sanitize_string(tag_line, 5)
 
         print(f"📖 Story mode: {story_mode.upper()}")
 
-        # Perform analysis
         result, error, status_code = _perform_analysis(
             game_name, tag_line, platform, match_count,
             force_refresh=False, story_mode=story_mode
@@ -449,39 +378,25 @@ def analyze_player():
     except Exception as e:
         print(f"Error in /api/analyze: {e}")
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/zones/<riot_id>', methods=['GET'])
 def get_zones(riot_id):
-    """
-    Get all cached zones for a player.
-
-    Example: GET /api/zones/theoppstopper-bigra
-
-    Response:
-        {
-            "player": {...},
-            "zones": {...},
-            "metadata": {...}
-        }
-    """
     try:
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
         riot_id_parsed = parse_riot_id(riot_id)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-
-    try:
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if not player:
-            return jsonify({'error': f'Player {riot_id_parsed} not found in database'}), 404
+            return jsonify({'error': f'Player not found'}), 404
 
         stories = get_all_stories(player.puuid)
 
         if not stories:
-            return jsonify({
-                'error': f'No stories found for {riot_id_parsed}. Run /api/analyze first.'
-            }), 404
+            return jsonify({'error': f'No stories found. Run /api/analyze first.'}), 404
 
         zones = {}
         for story in stories:
@@ -514,34 +429,24 @@ def get_zones(riot_id):
 
 @app.route('/api/zone/<riot_id>/<zone_id>', methods=['GET'])
 def get_zone(riot_id, zone_id):
-    """
-    Get specific zone story for a player.
-
-    Example: GET /api/zone/theoppstopper-bigra/baron_pit
-
-    Response:
-        {
-            "zone_id": "baron_pit",
-            "zone_name": "Baron Nashor",
-            "story": "...",
-            "stats": {...},
-            "generated_at": 1730000000
-        }
-    """
     try:
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
+        is_valid, error = validate_zone_id(zone_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
         riot_id_parsed = parse_riot_id(riot_id)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-
-    try:
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if not player:
-            return jsonify({'error': f'Player {riot_id_parsed} not found'}), 404
+            return jsonify({'error': 'Player not found'}), 404
 
         story = get_story(player.puuid, zone_id)
 
         if not story:
-            return jsonify({'error': f'Zone {zone_id} not found for {riot_id_parsed}'}), 404
+            return jsonify({'error': 'Zone not found'}), 404
 
         return jsonify({
             'zone_id': story['zone_id'],
@@ -560,25 +465,15 @@ def get_zone(riot_id, zone_id):
 
 @app.route('/api/refresh/<riot_id>', methods=['POST'])
 def refresh_player(riot_id):
-    """
-    Force re-analysis of player (delete cache and regenerate).
-
-    Example: POST /api/refresh/theoppstopper-bigra
-
-    Request (optional):
-        {
-            "matchCount": 30,
-            "platform": "euw1"
-        }
-
-    Response: Same as /api/analyze
-    """
     try:
+        if request.content_length and request.content_length > MAX_REQUEST_SIZE:
+            return jsonify({'error': 'Request too large'}), 413
+
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
         riot_id_parsed = parse_riot_id(riot_id)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-
-    try:
         parts = riot_id_parsed.split('#')
         if len(parts) != 2:
             return jsonify({'error': 'Invalid riot_id format'}), 400
@@ -589,17 +484,18 @@ def refresh_player(riot_id):
         platform = data.get('platform', 'euw1')
         story_mode = data.get('storyMode', 'coach')
 
-        if platform not in VALID_PLATFORMS:
-            return jsonify({'error': f'Invalid platform. Must be one of: {", ".join(VALID_PLATFORMS)}'}), 400
+        is_valid, error = validate_platform(platform, VALID_PLATFORMS)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        try:
-            match_count = int(match_count)
-            if match_count < MIN_MATCH_COUNT or match_count > MAX_MATCH_COUNT:
-                return jsonify({'error': f'matchCount must be between {MIN_MATCH_COUNT} and {MAX_MATCH_COUNT}'}), 400
-        except (ValueError, TypeError):
-            return jsonify({'error': 'matchCount must be a valid number'}), 400
+        is_valid, error, match_count = validate_match_count(match_count, MIN_MATCH_COUNT, MAX_MATCH_COUNT)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if story_mode not in ['coach', 'roast']:
+        is_valid, error = validate_story_mode(story_mode)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+        if not story_mode:
             story_mode = 'coach'
 
         print(f"📖 Refresh with story mode: {story_mode.upper()}")
@@ -607,7 +503,7 @@ def refresh_player(riot_id):
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if player:
             deleted_count = delete_all_stories(player.puuid)
-            print(f"Deleted {deleted_count} old stories for {riot_id_parsed}")
+            print(f"Deleted {deleted_count} old stories")
 
         result, error, status_code = _perform_analysis(
             game_name, tag_line, platform, match_count,
@@ -621,6 +517,81 @@ def refresh_player(riot_id):
 
     except Exception as e:
         print(f"Error in /api/refresh: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/generate-card/<riot_id>', methods=['GET'])
+def generate_card(riot_id):
+    """Generate player card image"""
+    try:
+        # Validate riot_id
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
+        riot_id_parsed = parse_riot_id(riot_id)
+        
+        # Get player data
+        player = player_repo.get_by_riot_id(riot_id_parsed)
+        if not player:
+            return jsonify({'error': 'Player not found'}), 404
+
+        # Get stories
+        stories = get_all_stories(player.puuid)
+        if not stories:
+            return jsonify({'error': 'No stories found'}), 404
+
+        # Extract player info
+        game_name = riot_id_parsed.split('#')[0]
+        
+        # Get stats from stories
+        intro_story = next((s for s in stories if s['zone_id'] == 'intro'), None)
+        stats = intro_story.get('stats', {}) if intro_story else {}
+        
+        # Determine most played champion (you'll need to add this logic)
+        champion_played = stats.get('most_played_champion', 'Ahri')
+        games_played = stats.get('total_games', 0)
+        kd = stats.get('kda', 0.0)
+        lvl = player.summoner_info.get('summonerLevel', 1) if hasattr(player, 'summoner_info') else 1
+        rank = player.rank_info[0] if hasattr(player, 'rank_info') and player.rank_info else 'Unranked'
+        
+        # Get title and story from intro
+        title = intro_story.get('zone_name', 'The Legend') if intro_story else 'The Legend'
+        story = intro_story.get('story_text', 'A summoner of great skill')[:100] if intro_story else 'A summoner of great skill'
+        
+        # Create profile
+        profil = RewindExportProfil(
+            player_name=game_name,
+            champion_played=champion_played,
+            games_played=games_played,
+            kd=kd,
+            lvl=lvl,
+            rank=rank,
+            title=title,
+            story=story
+        )
+        
+        # Generate card
+        generator = RewindCardGeneration(profil)
+        success = generator.create_card()
+        
+        if not success:
+            return jsonify({'error': 'Failed to generate card'}), 500
+        
+        # Read the generated image and convert to base64
+        filename = f"{game_name}_rewind_card.png"
+        with open(filename, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        os.remove(filename)
+        
+        return jsonify({
+            'success': True,
+            'image': f"data:image/png;base64,{image_data}",
+            'player_name': game_name
+        }), 200
+        
+    except Exception as e:
+        print(f"Error generating card: {e}")
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
 
@@ -665,22 +636,15 @@ def coach_endpoint():
         print(f"Session: {session_token[:16]}...")
         print(f"{'='*60}\n")
 
-        # Validate session and get PUUID
-        if USE_MOCK_DB:
-            # In mock mode, skip session validation
-            print("MOCK MODE: Skipping session validation")
-            puuid = "mock-puuid-12345"
-            player_name = "MockPlayer#TAG"
-        else:
-            # Validate session token
-            puuid = session_repo.get_puuid_from_session(session_token)
+        # Validate session token
+        puuid = session_repo.get_puuid_from_session(session_token)
 
-            if not puuid:
-                return jsonify({'error': 'Invalid or expired session'}), 401
+        if not puuid:
+            return jsonify({'error': 'Invalid or expired session'}), 401
 
-            # Extract player name from session token (since session has riot_id)
-            session = session_repo.get_session(session_token)
-            player_name = session.riot_id if session else f"Player ({puuid[:8]})"
+        # Extract player name from session token (since session has riot_id)
+        session = session_repo.get_session(session_token)
+        player_name = session.riot_id if session else f"Player ({puuid[:8]})"
 
         print(f"Session valid for player: {player_name}")
 
@@ -689,13 +653,12 @@ def coach_endpoint():
 
         # Load recent conversations from DynamoDB (last 3 conversations)
         recent_conversations = []
-        if not USE_MOCK_DB:
-            try:
-                recent_conversations = conversation_repo.get_recent_conversations(puuid, count=3)
-                if recent_conversations:
-                    print(f"Loaded {len(recent_conversations)} previous conversation(s)")
-            except Exception as e:
-                print(f"Could not load conversation history: {e}")
+        try:
+            recent_conversations = conversation_repo.get_recent_conversations(puuid, count=3)
+            if recent_conversations:
+                print(f"Loaded {len(recent_conversations)} previous conversation(s)")
+        except Exception as e:
+            print(f"Could not load conversation history: {e}")
 
         # Build system prompt with player context
         system_prompt = SYSTEM_PROMPT
@@ -798,20 +761,19 @@ def coach_endpoint():
 
                 print(f"AI Response: {ai_response[:100]}...")
 
-                # Save conversation to DynamoDB if not in mock mode
-                if not USE_MOCK_DB:
-                    try:
-                        from db.src.models.conversation import Conversation
+                # Save conversation to DynamoDB
+                try:
+                    from db.src.models.conversation import Conversation
 
-                        # Create new conversation
-                        conv = Conversation.create_new(puuid)
-                        conv.add_message("user", user_message)
-                        conv.add_message("assistant", ai_response)
-                        conversation_repo.create_conversation(conv)
+                    # Create new conversation
+                    conv = Conversation.create_new(puuid)
+                    conv.add_message("user", user_message)
+                    conv.add_message("assistant", ai_response)
+                    conversation_repo.create_conversation(conv)
 
-                        print("Conversation saved to DynamoDB")
-                    except Exception as db_error:
-                        print(f"Could not save conversation: {db_error}")
+                    print("Conversation saved to DynamoDB")
+                except Exception as db_error:
+                    print(f"Could not save conversation: {db_error}")
 
                 return jsonify({
                     'response': ai_response,
@@ -832,6 +794,19 @@ def coach_endpoint():
             'error': 'Internal server error',
             'message': str(e)
         }), 500
+
+
+# ============================================================================
+# STATIC FILE SERVING (Must be last to not override API routes)
+# ============================================================================
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    """Serve static files from public folder (HTML, CSS, JS, images, etc.)"""
+    # Only serve files that don't start with 'api'
+    if filename.startswith('api'):
+        return jsonify({'error': 'Not found'}), 404
+    return send_from_directory(PUBLIC_FOLDER, filename)
 
 
 if __name__ == '__main__':

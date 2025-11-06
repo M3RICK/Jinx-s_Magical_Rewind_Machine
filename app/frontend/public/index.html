@@ -423,7 +423,7 @@
         // ============================================
         // CONFIGURATION
         // ============================================
-        const API_URL = "http://localhost:5000";
+        const API_URL = "";
         const THEME_COLORS = {
             pink: "#FF1493",
             blue: "#00D4FF",
@@ -919,7 +919,7 @@
 
             try {
                 // Call authentication endpoint
-                const response = await fetch("http://localhost:5000/api/authenticate", {
+                const response = await fetch("/api/authenticate", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

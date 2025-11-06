@@ -2,7 +2,7 @@
 // JINX'S MAGICAL REWIND MACHINE - Landing Page
 // ============================================================================
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = '';
 
 // ============================================================================
 // PAGE LOAD ANIMATIONS
