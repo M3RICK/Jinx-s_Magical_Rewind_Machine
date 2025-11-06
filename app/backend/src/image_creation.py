@@ -1,36 +1,23 @@
 from PIL import Image, ImageDraw, ImageFont
 from urllib.request import urlopen
 from io import BytesIO
-<<<<<<< HEAD
 import aiohttp, asyncio
 
 class RewindExportProfil:
     def __init__(self, player_name: str, champion_played: str, games_played: int, kd: float, lvl: int, rank: str, title: str, story: str):
-=======
-import aiohttp, asyncio, re
-
-class RewindExportProfil:
-    def __init__(self, player_name: str, champion_played: str, games_played: int, kd: float, lvl: int, story: str, title: str):
->>>>>>> 2116320 (feat: rewind card generation impl)
         self.name = player_name
         self.champion_played = champion_played
         self.games_played = games_played
         self.kd = kd
         self.lvl = lvl
-<<<<<<< HEAD
         self.rank = rank
         self.title = title
         self.story = story
-=======
-        self.story = story
-        self.title = title
->>>>>>> 2116320 (feat: rewind card generation impl)
 
 class RewindCardGeneration:
     def __init__(self, profil: RewindExportProfil):
         self.profil = profil
         self.image = None
-<<<<<<< HEAD
         self.draw = None
         self.width = 356
         self.height = 591
@@ -337,322 +324,10 @@ class RewindCardGeneration:
             filename = f"{self.profil.name}_rewind_card.png"
             self.save(filename)
             return True
-=======
-        self.overlay = None
-        self.draw = None
-        self.width = 308
-        self.height = 560
-        self.fonts = {}
-    
-    async def get_champion_url(self) -> str:
-        champion = self.profil.champion_played.lower()
-        base = f"https://raw.communitydragon.org/15.22/game/assets/characters/{champion}/skins/base/"
-        default_character = "aatroxloadscreen.png"
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(base) as response:
-                    response.raise_for_status()
-                    html = await response.text()
-                    
-                    loadscreen_pattern = r'href="([^"]*loadscreen[^"]*\.png)"'
-                    matches = re.findall(loadscreen_pattern, html, re.IGNORECASE)
-                    if matches:
-                        loadscreen_file = matches[0]
-                        return base + loadscreen_file
-                    else:
-                        return base + default_character
-        except Exception as e:
-            print(f"Error fetching champion: {e}")
-            return base + default_character
-
-    def create_image(self, background_color=(0, 0, 0, 0)):
-        self.image = Image.new('RGBA', (self.width, self.height), background_color)
-        self.overlay = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
-        self.draw = ImageDraw.Draw(self.overlay)
-        return self
-    
-    def load_background(self, source):
-        if isinstance(source, tuple):
-            bg = Image.new('RGB', (self.width, self.height), source)
-        elif source.startswith('http'):
-            response = urlopen(source)
-            bg = Image.open(BytesIO(response.read()))
-        else:
-            bg = Image.open(source)
-        
-        aspect_ratio = self.width / self.height
-        bg_aspect = bg.width / bg.height
-        
-        if bg_aspect > aspect_ratio:
-            new_width = int(bg.height * aspect_ratio)
-            offset = (bg.width - new_width) // 2
-            bg = bg.crop((offset, 0, offset + new_width, bg.height))
-        else:
-            new_height = int(bg.width / aspect_ratio)
-            offset = (bg.height - new_height) // 2
-            bg = bg.crop((0, offset, bg.width, offset + new_height))
-        
-        bg = bg.resize((self.width, self.height), Image.Resampling.LANCZOS)
-        self.image = bg.convert('RGBA')
-        return self
-    
-    def load_font(self, name: str, size: int, font_path: str = "arial.ttf"):
-        try:
-            self.fonts[name] = ImageFont.truetype(font_path, size)
-        except:
-            self.fonts[name] = ImageFont.load_default()
-        return self
-    
-    def load_fonts_preset(self):
-        self.load_font('player_name', 32)
-        self.load_font('title', 14)
-        self.load_font('stat_number', 18)
-        self.load_font('stat_label', 9)
-        self.load_font('story', 10)
-        self.load_font('rewind', 11)
-        self.load_font('copyright', 7)
-        return self
-    
-    def draw_text(self, text: str, x: int, y: int, font_name: str = 'story', 
-                  color=(255, 255, 255, 255), align='left', stroke_width=0, stroke_fill=None):
-        font = self.fonts.get(font_name)
-        if not font:
-            raise ValueError(f"Font '{font_name}' not loaded")
-        
-        if align == 'center':
-            bbox = self.draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            x = (self.width - text_width) // 2
-        elif align == 'right':
-            bbox = self.draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            x = x - text_width
-
-        self.draw.text((x, y), text, fill=color, font=font, 
-                      stroke_width=stroke_width, stroke_fill=stroke_fill)
-        return self
-    
-    def draw_golden_frame(self):
-        outer_border = 5
-        inner_border = 2
-        
-        for i in range(outer_border):
-            alpha = int(255 * (1 - i / outer_border))
-            gold = (255, 215, 0, alpha)
-            self.draw.rectangle([i, i, self.width-i-1, self.height-i-1], 
-                               outline=gold, width=1)
-        
-        offset = outer_border + 2
-        for i in range(inner_border):
-            alpha = 180 - (i * 40)
-            gold = (255, 215, 0, alpha)
-            self.draw.rectangle([offset+i, offset+i, 
-                                self.width-offset-i-1, self.height-offset-i-1], 
-                               outline=gold, width=1)
-        
-        corner_size = 20
-        corners = [
-            (outer_border, outer_border),
-            (self.width - outer_border - corner_size, outer_border),
-            (outer_border, self.height - outer_border - corner_size),
-            (self.width - outer_border - corner_size, self.height - outer_border - corner_size)
-        ]
-        
-        for cx, cy in corners:
-            self.draw.rectangle([cx, cy, cx+corner_size, cy+corner_size],
-                               outline=(255, 215, 0, 100), width=1)
-            self.draw.line([(cx, cy), (cx+corner_size, cy+corner_size)],
-                          fill=(255, 215, 0, 80), width=1)
-        
-        return self
-    
-    def draw_gradient_overlay_bottom(self):
-        height_px = 210
-        gradient = Image.new('RGBA', (self.width, height_px))
-        draw = ImageDraw.Draw(gradient)
-        
-        for y in range(height_px):
-            ratio = 1 - (y / height_px)
-            opacity = min(255, int(ratio * ratio * 400))
-            draw.line([(0, y), (self.width, y)], fill=(0, 0, 0, opacity))
-        
-        self.image.paste(gradient, (0, self.height - height_px), gradient)
-        return self
-    
-    def draw_gradient_overlay_top(self):
-        height_px = 100
-        gradient = Image.new('RGBA', (self.width, height_px))
-        draw = ImageDraw.Draw(gradient)
-        
-        for y in range(height_px):
-            ratio = y / height_px
-            opacity = int((1 - ratio) * (1 - ratio) * 200)
-            draw.line([(0, y), (self.width, y)], fill=(0, 0, 0, opacity))
-        
-        self.image.paste(gradient, (0, 0), gradient)
-        return self
-    
-    def draw_stat_orb(self, center_x, center_y, radius, value, label):
-        outer_glow = radius + 4
-        for r in range(outer_glow, radius, -1):
-            alpha = int(100 * (1 - (outer_glow - r) / 4))
-            self.draw.ellipse([center_x - r, center_y - r, 
-                              center_x + r, center_y + r],
-                             outline=(255, 215, 0, alpha), width=1)
-        
-        self.draw.ellipse([center_x - radius, center_y - radius, 
-                          center_x + radius, center_y + radius],
-                         fill=(10, 10, 20, 220), 
-                         outline=(255, 215, 0, 255), width=2)
-        
-        self.draw.ellipse([center_x - radius + 2, center_y - radius + 2, 
-                          center_x + radius - 2, center_y + radius - 2],
-                         outline=(255, 235, 100, 180), width=1)
-        
-        value_str = str(value)
-        bbox = self.draw.textbbox((0, 0), value_str, font=self.fonts['stat_number'])
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        self.draw.text((center_x - text_width//2, center_y - text_height//2 - 3), 
-                      value_str, fill=(255, 215, 0, 255), 
-                      font=self.fonts['stat_number'],
-                      stroke_width=1, stroke_fill=(0, 0, 0, 200))
-        
-        bbox_label = self.draw.textbbox((0, 0), label, font=self.fonts['stat_label'])
-        label_width = bbox_label[2] - bbox_label[0]
-        
-        self.draw.text((center_x - label_width//2, center_y + 8), 
-                      label, fill=(200, 200, 200, 255), 
-                      font=self.fonts['stat_label'])
-    
-    def draw_name_frame(self, y_start):
-        frame_height = 140
-        padding = 15
-        
-        frame_top = y_start
-        frame_bottom = y_start + frame_height
-        
-        self.draw.rounded_rectangle([padding, frame_top, 
-                                     self.width - padding, frame_bottom],
-                                   radius=8, fill=(30, 30, 40, 200))
-        
-        self.draw.rounded_rectangle([padding, frame_top, 
-                                     self.width - padding, frame_bottom],
-                                   radius=8, outline=(60, 60, 70, 180), width=1)
-        
-        return frame_top
-    
-    def merge_layers(self):
-        if self.image and self.overlay:
-            self.image = Image.alpha_composite(self.image, self.overlay)
-        return self
-    
-    def save(self, filename: str):
-        if not self.image:
-            raise ValueError("No image to save")
-        
-        self.merge_layers()
-        self.image.save(filename, 'PNG')
-        return self
-    
-    async def image_creation_async(self) -> bool:
-        try:
-            champion_url = await self.get_champion_url()
-            
-            self.create_image()
-            
-            if champion_url:
-                self.load_background(champion_url)
-            else:
-                self.load_background((15, 25, 40))
-            
-            self.load_fonts_preset()
-            
-            self.draw_gradient_overlay_top()
- 
-            self.draw_golden_frame()
-            
-            self.draw_text("2025 REWIND", self.width//2, 15, 'rewind', 
-                          (255, 215, 0, 255), align='center',
-                          stroke_width=1, stroke_fill=(0, 0, 0, 200))
-            
-            orb_radius = 24
-            orb_y = 55
-            self.draw_stat_orb(35, orb_y, orb_radius, self.profil.lvl, "LVL")
-            self.draw_stat_orb(self.width - 35, orb_y, orb_radius, self.profil.kd, "K/D")
-            
-            frame_y = self.height - 165
-            self.draw_name_frame(frame_y)
-            
-            name_y = frame_y + 10
-            self.draw_text(self.profil.name, 0, name_y, 'player_name', 
-                          (255, 255, 255, 255), align='center',
-                          stroke_width=2, stroke_fill=(0, 0, 0, 220))
-            
-            title_y = frame_y + 50
-            self.draw_text(self.profil.title, 0, title_y, 'title', 
-                          (200, 200, 200, 255), align='center',
-                          stroke_width=1, stroke_fill=(0, 0, 0, 180))
-            
-            story_y = title_y + 23
-            
-            story_lines = []
-            words = self.profil.story.split()
-            current_line = ""
-            
-            for word in words:
-                test_line = current_line + " " + word if current_line else word
-                bbox = self.draw.textbbox((0, 0), test_line, font=self.fonts['story'])
-                if bbox[2] - bbox[0] < self.width - 50:
-                    current_line = test_line
-                else:
-                    if current_line:
-                        story_lines.append(current_line)
-                    current_line = word
-            
-            if current_line:
-                story_lines.append(current_line)
-            
-            story_lines = story_lines[:3]
-            
-            for i, line in enumerate(story_lines):
-                self.draw_text(line, 0, story_y + i * 13, 'story', 
-                              (220, 220, 220, 255), align='center')
-            
-            jinx_text = "Jinx's"
-            magical_text = " Magical "
-            rewind_text = "Rewind Machine"
-            
-            bbox_jinx = self.draw.textbbox((0, 0), jinx_text, font=self.fonts['copyright'])
-            bbox_magical = self.draw.textbbox((0, 0), jinx_text + magical_text, font=self.fonts['copyright'])
-            bbox_total = self.draw.textbbox((0, 0), jinx_text + magical_text + rewind_text, font=self.fonts['copyright'])
-            
-            total_width = bbox_total[2] - bbox_total[0]
-            jinx_width = bbox_jinx[2] - bbox_jinx[0]
-            magical_width = bbox_magical[2] - bbox_magical[0]
-            
-            start_x = (self.width - total_width) // 2
-            
-            self.draw.text((start_x, self.height - 22), jinx_text, 
-                          fill=(255, 76, 154, 255), font=self.fonts['copyright'])
-            
-            self.draw.text((start_x + jinx_width, self.height - 22), magical_text, 
-                          fill=(0, 184, 217, 255), font=self.fonts['copyright'])
-            
-            self.draw.text((start_x + magical_width, self.height - 22), rewind_text, 
-                          fill=(255, 255, 255, 255), font=self.fonts['copyright'])
-            self.save(f"{self.profil.name}_rewind_card.png")
-            print(f"Card created: {self.profil.name}_rewind_card.png")
-            return True
-
->>>>>>> 2116320 (feat: rewind card generation impl)
         except Exception as e:
             print(f"Error: {e}")
             return False
     
-<<<<<<< HEAD
     def create_card(self) -> bool:
         return asyncio.run(self.create_card_async())
 
@@ -672,24 +347,4 @@ def main():
     generator.create_card()
 
 if __name__ == "__main__":
-=======
-    def image_creation(self) -> bool:
-        return asyncio.run(self.image_creation_async())
-
-def main():
-    print("Generating LOL Rewind Card...")
-    profil = RewindExportProfil(
-        player_name="Faker", 
-        champion_played="Annie", 
-        games_played=342,
-        kd=4.2, 
-        lvl=287, 
-        story="The legend continues with style and precision across the Rift.",
-        title="The Unkillable Demon King" 
-    )
-    rewind = RewindCardGeneration(profil)
-    rewind.image_creation()
-
-if __name__=="__main__":
->>>>>>> 2116320 (feat: rewind card generation impl)
     main()
