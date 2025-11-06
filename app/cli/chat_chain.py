@@ -222,8 +222,7 @@ def run_chat(session_token=None):
     print("\n[INFO] Starting AI coaching session...")
 
     # Import AI chat module
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend', 'src'))
-    from ai_chat import start_chat_session
+    from app.backend.src.ai_chat import start_chat_session
 
     # Launch chat with player context
     start_chat_session(player_context=ai_context)
