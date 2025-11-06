@@ -7,15 +7,18 @@ import traceback
 import time
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
 
 from API.models.player import Player
 from API.analytics.zones.zone_analyzer import analyze_player_zones
 from API.story.story_generator import generate_all_stories
+from .utils.input_validator import (
+    validate_game_name, validate_tag_line, validate_platform,
+    validate_match_count, validate_story_mode, validate_riot_id,
+    validate_zone_id, sanitize_string
+)
 
 # Check if we should use mock DB
 USE_MOCK_DB = os.getenv('USE_MOCK_DB', 'false').lower() == 'true'
@@ -43,10 +46,19 @@ else:
     player_repo = PlayerRepository(dynamodb)
 
 app = Flask(__name__)
-CORS(app)
 
-FRONTEND_FOLDER = '/app/frontend/src'
-PUBLIC_FOLDER = '/app/frontend/public'
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5000').split(',')
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ALLOWED_ORIGINS,
+        "methods": ["GET", "POST"],
+        "allow_headers": ["Content-Type"],
+        "max_age": 3600
+    }
+})
+
+# Serve everything from public folder (HTML, CSS, JS, assets)
+PUBLIC_FOLDER = os.path.join(os.path.dirname(__file__), '../../frontend/public')
 
 VALID_PLATFORMS = [
     'euw1', 'eun1', 'na1', 'kr', 'br1', 'la1', 'la2', 'oc1',
@@ -54,6 +66,7 @@ VALID_PLATFORMS = [
 ]
 MIN_MATCH_COUNT = 5
 MAX_MATCH_COUNT = 50
+MAX_REQUEST_SIZE = 1024 * 10
 
 
 # Utility: Convert riot_id format (URL-safe to standard)
@@ -83,12 +96,7 @@ def run_async(coro):
 
 @app.route('/')
 def index():
-    return send_from_directory(FRONTEND_FOLDER, 'index.html')
-
-
-@app.route('/public/<path:filename>')
-def static_files(filename):
-    return send_from_directory(PUBLIC_FOLDER, filename)
+    return send_from_directory(PUBLIC_FOLDER, 'index.html')
 
 
 @app.route('/health', methods=['GET'])
@@ -241,25 +249,10 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_player():
-    """
-    Main endpoint: Analyze player and generate zone stories.
-
-    Request:
-        {
-            "gameName": "theoppstopper",
-            "tagLine": "bigra",
-            "platform": "euw1",
-            "matchCount": 30  // optional, default 30
-        }
-
-    Response:
-        {
-            "player": {...},
-            "zones": {...},
-            "metadata": {...}
-        }
-    """
     try:
+        if request.content_length and request.content_length > MAX_REQUEST_SIZE:
+            return jsonify({'error': 'Request too large'}), 413
+
         data = request.get_json(silent=True)
         if not data:
             return jsonify({'error': 'Invalid JSON or missing Content-Type header'}), 400
@@ -270,28 +263,33 @@ def analyze_player():
         match_count = data.get('matchCount', 30)
         story_mode = data.get('storyMode', 'coach')
 
-        if not game_name or not tag_line:
-            return jsonify({'error': 'gameName and tagLine are required'}), 400
+        is_valid, error = validate_game_name(game_name)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if not isinstance(game_name, str) or not isinstance(tag_line, str):
-            return jsonify({'error': 'gameName and tagLine must be strings'}), 400
+        is_valid, error = validate_tag_line(tag_line)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if platform not in VALID_PLATFORMS:
-            return jsonify({'error': f'Invalid platform. Must be one of: {", ".join(VALID_PLATFORMS)}'}), 400
+        is_valid, error = validate_platform(platform, VALID_PLATFORMS)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        try:
-            match_count = int(match_count)
-            if match_count < MIN_MATCH_COUNT or match_count > MAX_MATCH_COUNT:
-                return jsonify({'error': f'matchCount must be between {MIN_MATCH_COUNT} and {MAX_MATCH_COUNT}'}), 400
-        except (ValueError, TypeError):
-            return jsonify({'error': 'matchCount must be a valid number'}), 400
+        is_valid, error, match_count = validate_match_count(match_count, MIN_MATCH_COUNT, MAX_MATCH_COUNT)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if story_mode not in ['coach', 'roast']:
+        is_valid, error = validate_story_mode(story_mode)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+        if not story_mode:
             story_mode = 'coach'
+
+        game_name = sanitize_string(game_name, 16)
+        tag_line = sanitize_string(tag_line, 5)
 
         print(f"📖 Story mode: {story_mode.upper()}")
 
-        # Perform analysis
         result, error, status_code = _perform_analysis(
             game_name, tag_line, platform, match_count,
             force_refresh=False, story_mode=story_mode
@@ -305,39 +303,25 @@ def analyze_player():
     except Exception as e:
         print(f"Error in /api/analyze: {e}")
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/api/zones/<riot_id>', methods=['GET'])
 def get_zones(riot_id):
-    """
-    Get all cached zones for a player.
-
-    Example: GET /api/zones/theoppstopper-bigra
-
-    Response:
-        {
-            "player": {...},
-            "zones": {...},
-            "metadata": {...}
-        }
-    """
     try:
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
         riot_id_parsed = parse_riot_id(riot_id)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-
-    try:
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if not player:
-            return jsonify({'error': f'Player {riot_id_parsed} not found in database'}), 404
+            return jsonify({'error': f'Player not found'}), 404
 
         stories = get_all_stories(player.puuid)
 
         if not stories:
-            return jsonify({
-                'error': f'No stories found for {riot_id_parsed}. Run /api/analyze first.'
-            }), 404
+            return jsonify({'error': f'No stories found. Run /api/analyze first.'}), 404
 
         zones = {}
         for story in stories:
@@ -370,34 +354,24 @@ def get_zones(riot_id):
 
 @app.route('/api/zone/<riot_id>/<zone_id>', methods=['GET'])
 def get_zone(riot_id, zone_id):
-    """
-    Get specific zone story for a player.
-
-    Example: GET /api/zone/theoppstopper-bigra/baron_pit
-
-    Response:
-        {
-            "zone_id": "baron_pit",
-            "zone_name": "Baron Nashor",
-            "story": "...",
-            "stats": {...},
-            "generated_at": 1730000000
-        }
-    """
     try:
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
+        is_valid, error = validate_zone_id(zone_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
         riot_id_parsed = parse_riot_id(riot_id)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-
-    try:
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if not player:
-            return jsonify({'error': f'Player {riot_id_parsed} not found'}), 404
+            return jsonify({'error': 'Player not found'}), 404
 
         story = get_story(player.puuid, zone_id)
 
         if not story:
-            return jsonify({'error': f'Zone {zone_id} not found for {riot_id_parsed}'}), 404
+            return jsonify({'error': 'Zone not found'}), 404
 
         return jsonify({
             'zone_id': story['zone_id'],
@@ -416,25 +390,15 @@ def get_zone(riot_id, zone_id):
 
 @app.route('/api/refresh/<riot_id>', methods=['POST'])
 def refresh_player(riot_id):
-    """
-    Force re-analysis of player (delete cache and regenerate).
-
-    Example: POST /api/refresh/theoppstopper-bigra
-
-    Request (optional):
-        {
-            "matchCount": 30,
-            "platform": "euw1"
-        }
-
-    Response: Same as /api/analyze
-    """
     try:
+        if request.content_length and request.content_length > MAX_REQUEST_SIZE:
+            return jsonify({'error': 'Request too large'}), 413
+
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
         riot_id_parsed = parse_riot_id(riot_id)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-
-    try:
         parts = riot_id_parsed.split('#')
         if len(parts) != 2:
             return jsonify({'error': 'Invalid riot_id format'}), 400
@@ -445,17 +409,18 @@ def refresh_player(riot_id):
         platform = data.get('platform', 'euw1')
         story_mode = data.get('storyMode', 'coach')
 
-        if platform not in VALID_PLATFORMS:
-            return jsonify({'error': f'Invalid platform. Must be one of: {", ".join(VALID_PLATFORMS)}'}), 400
+        is_valid, error = validate_platform(platform, VALID_PLATFORMS)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        try:
-            match_count = int(match_count)
-            if match_count < MIN_MATCH_COUNT or match_count > MAX_MATCH_COUNT:
-                return jsonify({'error': f'matchCount must be between {MIN_MATCH_COUNT} and {MAX_MATCH_COUNT}'}), 400
-        except (ValueError, TypeError):
-            return jsonify({'error': 'matchCount must be a valid number'}), 400
+        is_valid, error, match_count = validate_match_count(match_count, MIN_MATCH_COUNT, MAX_MATCH_COUNT)
+        if not is_valid:
+            return jsonify({'error': error}), 400
 
-        if story_mode not in ['coach', 'roast']:
+        is_valid, error = validate_story_mode(story_mode)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+        if not story_mode:
             story_mode = 'coach'
 
         print(f"📖 Refresh with story mode: {story_mode.upper()}")
@@ -463,7 +428,7 @@ def refresh_player(riot_id):
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if player:
             deleted_count = delete_all_stories(player.puuid)
-            print(f"Deleted {deleted_count} old stories for {riot_id_parsed}")
+            print(f"Deleted {deleted_count} old stories")
 
         result, error, status_code = _perform_analysis(
             game_name, tag_line, platform, match_count,
@@ -479,6 +444,19 @@ def refresh_player(riot_id):
         print(f"Error in /api/refresh: {e}")
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
+
+
+# ============================================================================
+# STATIC FILE SERVING (Must be last to not override API routes)
+# ============================================================================
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    """Serve static files from public folder (HTML, CSS, JS, images, etc.)"""
+    # Only serve files that don't start with 'api'
+    if filename.startswith('api'):
+        return jsonify({'error': 'Not found'}), 404
+    return send_from_directory(PUBLIC_FOLDER, filename)
 
 
 if __name__ == '__main__':
