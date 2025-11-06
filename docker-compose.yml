@@ -1,17 +1,29 @@
-version: "3.9"
-
 services:
-  api:
+  rift-rewind:
     build:
       context: .
-      dockerfile: app/backend/Dockerfile
-    container_name: flask_api
+      dockerfile: Dockerfile
     ports:
       - "5000:5000"
-    volumes:
-      - ./app/backend/requirements.txt:/app/requirements.txt
     environment:
-      - FLASK_APP=src/main.py
-      - FLASK_ENV=development
-      - FLASK_RUN_HOST=0.0.0.0
-    command: flask run
+      # Set to 'true' to use mock database (no AWS costs)
+      - USE_MOCK_DB=false
+      - USE_MOCK_AI=false
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
+      # Add your AWS credentials if using real DynamoDB/Bedrock
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # Add Riot API key
+      - RIOT_API_KEY=${RIOT_API_KEY}
+    volumes:
+      # Mount .env file for local development
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

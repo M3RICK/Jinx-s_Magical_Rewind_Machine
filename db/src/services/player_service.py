@@ -10,7 +10,7 @@ from db.src.repositories.match_repository import MatchRepository
 from db.src.repositories.session_repository import SessionRepository
 from db.src.models.player import Player, RankInfo
 from db.src.models.session import Session
-from db.src.db_handshake import get_dynamodb_reasources
+from db.src.db_handshake import get_dynamodb_resources
 
 
 class PlayerService:
@@ -26,7 +26,7 @@ class PlayerService:
 
     def __init__(self):
         """Initialize repositories"""
-        dynamodb = get_dynamodb_reasources()
+        dynamodb = get_dynamodb_resources()
         self.player_repo = PlayerRepository(dynamodb)
         self.match_repo = MatchRepository(dynamodb)
         self.session_repo = SessionRepository(dynamodb)
