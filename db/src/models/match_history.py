@@ -1,20 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
-from decimal import Decimal
 import time
-
-
-def convert_floats_to_decimal(obj):
-    """Recursively convert all float values to Decimal for DynamoDB compatibility."""
-    if isinstance(obj, list):
-        return [convert_floats_to_decimal(item) for item in obj]
-    elif isinstance(obj, dict):
-        return {key: convert_floats_to_decimal(value) for key, value in obj.items()}
-    elif isinstance(obj, float):
-        return Decimal(str(obj))
-    else:
-        return obj
 
 
 @dataclass
@@ -26,7 +13,7 @@ class MatchHistory:
     Includes a timestamp for easy chronological sorting.
     """
     puuid: str
-    match_id: str  # Riot match ID format: "NA1_4567890123"
+    match_id: str
     timestamp: int  # Unix timestamp (seconds since epoch)
     match_data: Dict[str, Any]  # Complete match data from Riot API
     created_at: Optional[str] = None
@@ -34,7 +21,7 @@ class MatchHistory:
     def __post_init__(self):
         """Initialize created_at if not provided"""
         if self.created_at is None:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = datetime.utcnow().isoformat()
 
     def to_dynamodb_item(self) -> Dict:
         """Convert to DynamoDB item format"""
@@ -42,7 +29,7 @@ class MatchHistory:
             'puuid': self.puuid,
             'match_id': self.match_id,
             'timestamp': self.timestamp,
-            'match_data': convert_floats_to_decimal(self.match_data),
+            'match_data': self.match_data,
             'created_at': self.created_at
         }
 

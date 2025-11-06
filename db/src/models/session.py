@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, Optional
 from dataclasses import dataclass
 import uuid
@@ -20,21 +20,21 @@ class Session:
     def __post_init__(self):
         """Initialize timestamps if not provided"""
         if self.created_at is None:
-            self.created_at = datetime.now(timezone.utc).isoformat()
+            self.created_at = datetime.utcnow().isoformat()
 
         # Default session expiry: 7 days from creation
         if self.expires_at is None:
-            expiry = datetime.now(timezone.utc) + timedelta(days=7)
+            expiry = datetime.utcnow() + timedelta(days=7)
             self.expires_at = expiry.isoformat()
 
     def is_expired(self) -> bool:
         """Check if session has expired"""
         expiry = datetime.fromisoformat(self.expires_at)
-        return datetime.now(timezone.utc) > expiry
+        return datetime.utcnow() > expiry
 
     def extend_expiry(self, days: int = 7):
         """Extend session expiry by specified number of days"""
-        expiry = datetime.now(timezone.utc) + timedelta(days=days)
+        expiry = datetime.utcnow() + timedelta(days=days)
         self.expires_at = expiry.isoformat()
 
     def to_dynamodb_item(self) -> Dict:
@@ -62,7 +62,7 @@ class Session:
     def create_new(puuid: str, riot_id: str, expiry_days: int = 7) -> 'Session':
         """Create a new session with generated token"""
         session_token = str(uuid.uuid4())
-        expiry = datetime.now(timezone.utc) + timedelta(days=expiry_days)
+        expiry = datetime.utcnow() + timedelta(days=expiry_days)
 
         return Session(
             session_token=session_token,
