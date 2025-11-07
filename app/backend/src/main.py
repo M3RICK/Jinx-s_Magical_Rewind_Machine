@@ -29,7 +29,7 @@ import json
 
 # Using AWS DynamoDB for production
 from db.src.queries.story_queries import (
-    get_all_stories, store_all_stories, is_story_fresh, delete_all_stories, get_story, check_story_mode
+    get_all_stories, store_all_stories, is_story_fresh, delete_all_stories, get_story, check_story_mode, store_story
 )
 from db.src.repositories.player_repository import PlayerRepository
 from db.src.repositories.session_repository import SessionRepository
@@ -188,7 +188,7 @@ def authenticate_player():
 # SHARED ANALYSIS LOGIC
 # ============================================================================
 
-def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, force_refresh=False, story_mode='coach'):
+def _perform_analysis(game_name, tag_line, platform='euw1', match_count=15, force_refresh=False, story_mode='coach'):
     """
     Shared analysis logic for both /api/analyze and /api/refresh.
 
@@ -196,7 +196,7 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
         game_name: Player's game name
         tag_line: Player's tag line
         platform: Platform/region (default: euw1)
-        match_count: Number of matches to analyze (default: 30)
+        match_count: Number of matches to analyze (default: 15)
         force_refresh: Skip cache check and force fresh analysis
         story_mode: 'coach' for helpful advice or 'roast' for savage humor (default: coach)
 
@@ -217,8 +217,7 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                     if is_story_fresh(puuid, 'intro', max_age_seconds=604800):
                         # Check if cached mode matches requested mode
                         if check_story_mode(puuid, story_mode):
-                            mode_emoji = "🎓" if story_mode == 'coach' else "🔥"
-                            print(f"✅ Using cached stories for {riot_id} ({mode_emoji} {story_mode.upper()} mode)")
+                            print(f"Using cached stories for {riot_id} ({story_mode.upper()} mode)")
 
                             cached_stories = get_all_stories(puuid)
 
@@ -248,8 +247,8 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                             cached_stories = get_all_stories(puuid)
                             if cached_stories:
                                 old_mode = cached_stories[0].get('story_mode', 'coach')
-                                print(f"🔄 Mode mismatch: Cache is {old_mode.upper()}, requested {story_mode.upper()}")
-                                print(f"🗑️  Deleting old {old_mode} stories and regenerating in {story_mode} mode...")
+                                print(f"Mode mismatch: Cache is {old_mode.upper()}, requested {story_mode.upper()}")
+                                print(f"Deleting old {old_mode} stories and regenerating in {story_mode} mode...")
                                 delete_all_stories(puuid)
             except Exception as e:
                 print(f"Error checking cache: {e}")
@@ -280,13 +279,40 @@ def _perform_analysis(game_name, tag_line, platform='euw1', match_count=30, forc
                 # Analyze zones
                 zone_stats = analyze_player_zones(player.processed_stats)
 
-                # Generate stories with specified mode
-                stories = generate_all_stories(zone_stats, story_mode=story_mode)
+                # Generate only intro zone initially (lazy load others on-demand)
+                # This prevents rate limiting and speeds up initial load
+                stories = {}
+                if 'intro' in zone_stats:
+                    from API.story.story_generator import generate_zone_story
+                    print(f"  [1/1] Generating intro zone only...")
+                    intro_story = generate_zone_story('intro', zone_stats['intro'], story_mode)
+                    if intro_story:
+                        stories['intro'] = {
+                            'zone_name': zone_stats['intro'].get('zone_name', 'intro'),
+                            'story': intro_story,
+                            'stats': zone_stats['intro']
+                        }
+                    print(f"Generated intro zone in {story_mode} mode (others will load on-demand)\n")
 
-                # Store in DB with story mode
-                if player.puuid:
+                # Store intro story with AI text
+                if player.puuid and stories:
                     stored = store_all_stories(player.puuid, stories, story_mode=story_mode)
-                    print(f"Stored {len(stored)} stories for {riot_id} in {story_mode.upper()} mode")
+                    print(f"Stored {len(stored)} intro story for {riot_id} in {story_mode.upper()} mode")
+
+                # Store ALL zone stats (without stories) for fast on-demand generation
+                if player.puuid:
+                    for zone_id, stats in zone_stats.items():
+                        if zone_id != 'intro':  # Skip intro as it's already stored
+                            # Store placeholder story with stats for fast later generation
+                            store_story(
+                                player.puuid,
+                                zone_id,
+                                "",  # Empty story text - will be generated on-demand
+                                stats.get('zone_name', zone_id),
+                                stats,
+                                story_mode
+                            )
+                    print(f"Cached stats for {len(zone_stats)-1} additional zones (fast on-demand generation)")
 
                 return {
                     'player': {
@@ -335,7 +361,7 @@ def analyze_player():
         game_name = data.get('gameName')
         tag_line = data.get('tagLine')
         platform = data.get('platform', 'euw1')
-        match_count = data.get('matchCount', 30)
+        match_count = data.get('matchCount', 10)
         story_mode = data.get('storyMode', 'coach')
 
         is_valid, error = validate_game_name(game_name)
@@ -363,7 +389,7 @@ def analyze_player():
         game_name = sanitize_string(game_name, 16)
         tag_line = sanitize_string(tag_line, 5)
 
-        print(f"📖 Story mode: {story_mode.upper()}")
+        print(f"Story mode: {story_mode.upper()}")
 
         result, error, status_code = _perform_analysis(
             game_name, tag_line, platform, match_count,
@@ -463,6 +489,172 @@ def get_zone(riot_id, zone_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/generate-story/<riot_id>/<zone_id>', methods=['POST'])
+def generate_zone_story_endpoint(riot_id, zone_id):
+    """
+    Generate a story for a specific zone on-demand.
+
+    Request body (optional):
+    {
+        "storyMode": "coach" or "roast"
+    }
+
+    Response:
+    {
+        "zone_id": "baron_pit",
+        "zone_name": "Baron Nashor",
+        "story": "AI-generated story text",
+        "stats": {...},
+        "generated_at": timestamp
+    }
+    """
+    try:
+        is_valid, error = validate_riot_id(riot_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
+        is_valid, error = validate_zone_id(zone_id)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+
+        riot_id_parsed = parse_riot_id(riot_id)
+        player = player_repo.get_by_riot_id(riot_id_parsed)
+        if not player:
+            return jsonify({'error': 'Player not found'}), 404
+
+        data = request.get_json(silent=True) or {}
+        story_mode = data.get('storyMode', 'coach')
+
+        is_valid, error = validate_story_mode(story_mode)
+        if not is_valid:
+            return jsonify({'error': error}), 400
+        if not story_mode:
+            story_mode = 'coach'
+
+        print(f"Generating story for {riot_id_parsed} - Zone: {zone_id} (Mode: {story_mode})")
+
+        # First, check if we already have cached data for this zone
+        existing_story = get_story(player.puuid, zone_id)
+
+        if existing_story:
+            cached_mode = existing_story.get('story_mode', 'coach')
+            cached_story_text = existing_story.get('story_text', '').strip()
+            zone_stats = existing_story.get('stats', {})
+
+            # Case 1: Story exists and mode matches - return cached story
+            if cached_story_text and cached_mode == story_mode:
+                print(f"  Using fully cached story for {zone_id}")
+                return jsonify({
+                    'zone_id': zone_id,
+                    'zone_name': existing_story.get('zone_name', zone_id),
+                    'story': cached_story_text,
+                    'stats': zone_stats,
+                    'story_mode': story_mode,
+                    'generated_at': existing_story.get('generated_at')
+                }), 200
+
+            # Case 2: Stats cached but no story yet OR mode mismatch - generate story quickly
+            if zone_stats:
+                print(f"  Generating story using cached stats (fast: ~1-2s)")
+                from API.story.story_generator import generate_zone_story
+                story_text = generate_zone_story(zone_id, zone_stats, story_mode)
+
+                if story_text:
+                    # Store the generated story
+                    store_story(
+                        player.puuid,
+                        zone_id,
+                        story_text,
+                        zone_stats.get('zone_name', zone_id),
+                        zone_stats,
+                        story_mode
+                    )
+
+                    return jsonify({
+                        'zone_id': zone_id,
+                        'zone_name': zone_stats.get('zone_name', zone_id),
+                        'story': story_text,
+                        'stats': zone_stats,
+                        'story_mode': story_mode,
+                        'generated_at': int(time.time())
+                    }), 200
+
+        # No cached story or stats - need to fetch from Riot API (slow path)
+        print(f"  No cached data - fetching from Riot API (this may take 30-60s)...")
+
+        async def generate_story_for_zone():
+            parts = riot_id_parsed.split('#')
+            if len(parts) != 2:
+                return None, "Invalid riot_id format"
+
+            game_name, tag_line = parts
+            platform = player.platform if hasattr(player, 'platform') else 'euw1'
+
+            async with Player(game_name, tag_line, platform=platform) as player_obj:
+                # Load profile and matches
+                success = await player_obj.load_profile()
+                if not success:
+                    return None, "Failed to load player profile"
+
+                await player_obj.load_recent_matches(count=15)
+
+                if not player_obj.processed_stats:
+                    return None, "No match data found"
+
+                await player_obj.load_match_timelines()
+                player_obj.process_matches()
+
+                # Extract stats for this specific zone
+                from API.analytics.zones.zone_analyzer import extract_zone_stats
+                zone_stats = extract_zone_stats(player_obj.processed_stats, zone_id)
+
+                if not zone_stats:
+                    return None, f"Could not extract stats for zone {zone_id}"
+
+                # Generate story
+                from API.story.story_generator import generate_zone_story
+                story_text = generate_zone_story(zone_id, zone_stats, story_mode)
+
+                if not story_text:
+                    return None, "Failed to generate story"
+
+                # Store for future use
+                store_story(
+                    player_obj.puuid,
+                    zone_id,
+                    story_text,
+                    zone_stats.get('zone_name', zone_id),
+                    zone_stats,
+                    story_mode
+                )
+
+                return {
+                    'zone_id': zone_id,
+                    'zone_name': zone_stats.get('zone_name', zone_id),
+                    'story': story_text,
+                    'stats': zone_stats,
+                    'story_mode': story_mode,
+                    'generated_at': int(time.time())
+                }, None
+
+        result, error = run_async(generate_story_for_zone())
+
+        if error:
+            return jsonify({'error': error}), 500
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        error_details = {
+            'error': 'Failed to generate story',
+            'details': str(e),
+            'type': type(e).__name__
+        }
+        print(f"Error in /api/generate-story: {e}")
+        traceback.print_exc()
+        return jsonify(error_details), 500
+
+
 @app.route('/api/refresh/<riot_id>', methods=['POST'])
 def refresh_player(riot_id):
     try:
@@ -480,7 +672,7 @@ def refresh_player(riot_id):
         game_name, tag_line = parts
 
         data = request.get_json(silent=True) or {}
-        match_count = data.get('matchCount', 30)
+        match_count = data.get('matchCount', 15)
         platform = data.get('platform', 'euw1')
         story_mode = data.get('storyMode', 'coach')
 
@@ -498,7 +690,7 @@ def refresh_player(riot_id):
         if not story_mode:
             story_mode = 'coach'
 
-        print(f"📖 Refresh with story mode: {story_mode.upper()}")
+        print(f"Refresh with story mode: {story_mode.upper()}")
 
         player = player_repo.get_by_riot_id(riot_id_parsed)
         if player:
