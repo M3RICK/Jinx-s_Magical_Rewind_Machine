@@ -2,15 +2,27 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including fontconfig and freetype for font management
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
+    fontconfig \
+    libfreetype6 \
+    libfreetype6-dev \
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy and install fonts
+COPY fonts/ /usr/share/fonts/truetype/teko/
+RUN fc-cache -f -v
 
 # Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Reinstall Pillow to ensure it's compiled with freetype support
+RUN pip uninstall -y Pillow && pip install --no-cache-dir Pillow
 
 # Copy entire project structure (API, db, app, testing)
 COPY API/ ./API/

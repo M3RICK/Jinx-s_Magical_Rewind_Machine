@@ -2,6 +2,7 @@ from PIL import Image, ImageDraw, ImageFont
 from urllib.request import urlopen
 from io import BytesIO
 import aiohttp, asyncio
+import os
 
 class RewindExportProfil:
     def __init__(self, player_name: str, champion_played: str, games_played: int, kd: float, lvl: int, rank: str, title: str, story: str):
@@ -86,16 +87,63 @@ class RewindCardGeneration:
         self.draw = ImageDraw.Draw(self.image)
         return self
     
+    def find_teko_font(self):
+        """Find Teko font in multiple possible locations"""
+        # Get absolute path to project root
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(current_dir, '../../..'))
+
+        possible_paths = [
+            # Docker path
+            "/usr/share/fonts/truetype/teko/Teko-Bold.ttf",
+            "/usr/share/fonts/truetype/teko/Teko-SemiBold.ttf",
+            "/usr/share/fonts/truetype/teko/Teko-Regular.ttf",
+            # Absolute path from project root
+            os.path.join(project_root, "fonts/Teko-Bold.ttf"),
+            os.path.join(project_root, "fonts/Teko-SemiBold.ttf"),
+            os.path.join(project_root, "fonts/Teko-Regular.ttf"),
+            # Working directory relative paths
+            "fonts/Teko-Bold.ttf",
+            "fonts/Teko-SemiBold.ttf",
+            "fonts/Teko-Regular.ttf",
+        ]
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                print(f"✓ Found Teko font at: {path}")
+                return path
+
+        print("⚠ Teko font not found, falling back to default")
+        return None
+
     def load_fonts(self):
+        """Load Teko font with intelligent fallback"""
+        teko_path = self.find_teko_font()
+
         try:
-            self.fonts['title'] = ImageFont.truetype("arial.ttf", 16)
-            self.fonts['name'] = ImageFont.truetype("arial.ttf", 24)
-            self.fonts['subtitle'] = ImageFont.truetype("arial.ttf", 14)
-            self.fonts['story'] = ImageFont.truetype("arial.ttf", 11)
-            self.fonts['circle'] = ImageFont.truetype("arial.ttf", 20)
-            self.fonts['circle_label'] = ImageFont.truetype("arial.ttf", 10)
-            self.fonts['footer'] = ImageFont.truetype("arial.ttf", 9)
-        except:
+            if teko_path:
+                # Use Teko font (bold and modern look)
+                self.fonts['title'] = ImageFont.truetype(teko_path, 22)
+                self.fonts['name'] = ImageFont.truetype(teko_path, 32)
+                self.fonts['subtitle'] = ImageFont.truetype(teko_path, 18)
+                self.fonts['story'] = ImageFont.truetype(teko_path, 13)
+                self.fonts['circle'] = ImageFont.truetype(teko_path, 26)
+                self.fonts['circle_label'] = ImageFont.truetype(teko_path, 12)
+                self.fonts['footer'] = ImageFont.truetype(teko_path, 11)
+                print("✓ Teko font loaded successfully")
+            else:
+                # Fallback to Arial if Teko not found
+                self.fonts['title'] = ImageFont.truetype("arial.ttf", 16)
+                self.fonts['name'] = ImageFont.truetype("arial.ttf", 24)
+                self.fonts['subtitle'] = ImageFont.truetype("arial.ttf", 14)
+                self.fonts['story'] = ImageFont.truetype("arial.ttf", 11)
+                self.fonts['circle'] = ImageFont.truetype("arial.ttf", 20)
+                self.fonts['circle_label'] = ImageFont.truetype("arial.ttf", 10)
+                self.fonts['footer'] = ImageFont.truetype("arial.ttf", 9)
+                print("✓ Arial font loaded as fallback")
+        except Exception as e:
+            print(f"⚠ Font loading error: {e}, using default font")
+            # Ultimate fallback to PIL default font
             default_font = ImageFont.load_default()
             self.fonts['title'] = default_font
             self.fonts['name'] = default_font
@@ -104,6 +152,7 @@ class RewindCardGeneration:
             self.fonts['circle'] = default_font
             self.fonts['circle_label'] = default_font
             self.fonts['footer'] = default_font
+
         return self
     
     def draw_golden_border(self):

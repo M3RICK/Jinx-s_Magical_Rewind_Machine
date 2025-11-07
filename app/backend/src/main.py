@@ -15,6 +15,7 @@ from app.backend.src.image_creation import RewindExportProfil, RewindCardGenerat
 from API.models.player import Player
 from API.analytics.zones.zone_analyzer import analyze_player_zones
 from API.story.story_generator import generate_all_stories
+from API.story.card_generator import generate_card_content_with_fallback
 from app.backend.src.utils.input_validator import (
     validate_game_name, validate_tag_line, validate_platform,
     validate_match_count, validate_story_mode, validate_riot_id,
@@ -714,7 +715,7 @@ def refresh_player(riot_id):
 
 @app.route('/api/generate-card/<riot_id>', methods=['GET'])
 def generate_card(riot_id):
-    """Generate player card image"""
+    """Generate player card image by fetching fresh data from Riot API"""
     try:
         # Validate riot_id
         is_valid, error = validate_riot_id(riot_id)
@@ -722,66 +723,133 @@ def generate_card(riot_id):
             return jsonify({'error': error}), 400
 
         riot_id_parsed = parse_riot_id(riot_id)
-        
-        # Get player data
-        player = player_repo.get_by_riot_id(riot_id_parsed)
-        if not player:
+        parts = riot_id_parsed.split('#')
+        if len(parts) != 2:
+            return jsonify({'error': 'Invalid riot_id format'}), 400
+
+        game_name, tag_line = parts
+
+        # Get player from DB to find story mode
+        db_player = player_repo.get_by_riot_id(riot_id_parsed)
+        if not db_player:
             return jsonify({'error': 'Player not found'}), 404
 
-        # Get stories
-        stories = get_all_stories(player.puuid)
-        if not stories:
-            return jsonify({'error': 'No stories found'}), 404
+        # Get story mode from cached stories
+        stories = get_all_stories(db_player.puuid)
+        intro_story = next((s for s in stories if s['zone_id'] == 'intro'), None) if stories else None
+        story_mode = intro_story.get('story_mode', 'coach') if intro_story else 'coach'
 
-        # Extract player info
-        game_name = riot_id_parsed.split('#')[0]
-        
-        # Get stats from stories
-        intro_story = next((s for s in stories if s['zone_id'] == 'intro'), None)
-        stats = intro_story.get('stats', {}) if intro_story else {}
-        
-        # Determine most played champion (you'll need to add this logic)
-        champion_played = stats.get('most_played_champion', 'Ahri')
-        games_played = stats.get('total_games', 0)
-        kd = stats.get('kda', 0.0)
-        lvl = player.summoner_info.get('summonerLevel', 1) if hasattr(player, 'summoner_info') else 1
-        rank = player.rank_info[0] if hasattr(player, 'rank_info') and player.rank_info else 'Unranked'
-        
-        # Get title and story from intro
-        title = intro_story.get('zone_name', 'The Legend') if intro_story else 'The Legend'
-        story = intro_story.get('story_text', 'A summoner of great skill')[:100] if intro_story else 'A summoner of great skill'
-        
-        # Create profile
+        platform = 'euw1'  # Default platform
+
+        print(f"Fetching fresh player data from Riot API for {riot_id_parsed}...")
+
+        # Fetch FRESH data from Riot API using Player class
+        async def fetch_player_data():
+            async with Player(game_name, tag_line, platform=platform) as player:
+                # Load profile (gets summoner info, rank, champion mastery)
+                success = await player.load_profile()
+                if not success:
+                    return None
+
+                # Load recent matches to calculate stats
+                await player.load_recent_matches(count=15)
+
+                if not player.processed_stats:
+                    return None
+
+                # Process matches to get aggregated stats
+                player.process_matches()
+
+                return player
+
+        player = run_async(fetch_player_data())
+
+        if not player:
+            return jsonify({'error': 'Failed to fetch player data'}), 500
+
+        # Extract level from summoner_info
+        lvl = player.summoner_info.get('summonerLevel', 100) if player.summoner_info else 100
+
+        # Extract rank from rank_info
+        rank = 'Unranked'
+        if player.rank_info:
+            for queue in player.rank_info:
+                if queue.get('queueType') == 'RANKED_SOLO_5x5':
+                    tier = queue.get('tier', 'Unranked')
+                    division = queue.get('rank', '')
+                    rank = f"{tier} {division}".strip()
+                    break
+
+        # Calculate stats from processed_stats
+        matches = player.processed_stats
+        total_matches = len(matches)
+
+        # Calculate KDA
+        total_kills = sum(m.get('kills', 0) for m in matches)
+        total_deaths = sum(m.get('deaths', 0) for m in matches)
+        total_assists = sum(m.get('assists', 0) for m in matches)
+        kda = (total_kills + total_assists) / max(total_deaths, 1)
+
+        # Calculate winrate
+        wins = sum(1 for m in matches if m.get('win', False))
+        winrate = (wins / total_matches * 100) if total_matches > 0 else 0.0
+
+        # Get most played champion from processed_stats (count champion occurrences)
+        champion_played = 'Unknown'
+        if matches:
+            from collections import Counter
+            champion_counts = Counter(m.get('champion_name', 'Unknown') for m in matches)
+            if champion_counts:
+                champion_played = champion_counts.most_common(1)[0][0]
+
+        print(f"Player data extracted:")
+        print(f"  Champion: {champion_played}, Games: {total_matches}, KDA: {kda:.2f}")
+        print(f"  Rank: {rank}, Level: {lvl}, Winrate: {winrate:.1f}%")
+
+        # Generate AI-powered title and story for the card
+        print(f"Generating AI card content ({story_mode} mode)...")
+        card_content = generate_card_content_with_fallback(
+            player_stats={
+                'champion_played': champion_played,
+                'games_played': total_matches,
+                'kda': kda,
+                'rank': rank,
+                'winrate': winrate
+            },
+            story_mode=story_mode
+        )
+
+        title = card_content.get('title', 'The Legend')
+        story = card_content.get('story', 'A summoner of great skill')
+
         profil = RewindExportProfil(
             player_name=game_name,
             champion_played=champion_played,
-            games_played=games_played,
-            kd=kd,
+            games_played=total_matches,
+            kd=kda,
             lvl=lvl,
             rank=rank,
             title=title,
             story=story
         )
-        
-        # Generate card
+
         generator = RewindCardGeneration(profil)
         success = generator.create_card()
-        
+
         if not success:
             return jsonify({'error': 'Failed to generate card'}), 500
-        
-        # Read the generated image and convert to base64
+
         filename = f"{game_name}_rewind_card.png"
         with open(filename, 'rb') as f:
             image_data = base64.b64encode(f.read()).decode('utf-8')
         os.remove(filename)
-        
+
         return jsonify({
             'success': True,
             'image': f"data:image/png;base64,{image_data}",
             'player_name': game_name
         }), 200
-        
+
     except Exception as e:
         print(f"Error generating card: {e}")
         traceback.print_exc()
