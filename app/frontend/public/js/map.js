@@ -432,23 +432,105 @@ function checkZoneInteraction() {
     }
 }
 
-function handleZoneClick(zoneId, zoneElement) {
+async function handleZoneClick(zoneId, zoneElement) {
     console.log('Zone activated:', zoneId);
 
+    // Check if we have cached story first
     const zones = playerData.zones || {};
-    const zoneData = zones[zoneId];
+    const cachedZoneData = zones[zoneId];
 
-    if (!zoneData) {
-        showModal('Zone Not Found', 'No story available for this zone yet. Try refreshing your data!', {});
+    if (cachedZoneData) {
+        // Use cached story
+        showModal(cachedZoneData.zone_name, cachedZoneData.story, cachedZoneData.stats || {});
         return;
     }
 
-    showModal(zoneData.zone_name, zoneData.story, zoneData.stats || {});
+    // No cached story - generate on-demand
+    console.log('No cached story found. Generating new story for:', zoneId);
+
+    // Show loading modal
+    showLoadingModal(zoneId);
+
+    try {
+        // Get riot_id from playerData
+        const { gameName, tagLine, riot_id } = playerData.playerInfo;
+        const riotIdFormatted = riot_id ? riot_id.replace('#', '-') : `${gameName}-${tagLine}`;
+
+        // Call backend to generate story
+        const response = await fetch(`/api/generate-story/${riotIdFormatted}/${zoneId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                storyMode: playerData.metadata?.story_mode || 'coach'
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to generate story');
+        }
+
+        // Cache the generated story in playerData
+        if (!playerData.zones) {
+            playerData.zones = {};
+        }
+        playerData.zones[zoneId] = {
+            zone_name: data.zone_name,
+            story: data.story,
+            stats: data.stats
+        };
+
+        // Update localStorage
+        localStorage.setItem('rewindData', JSON.stringify(playerData));
+
+        // Show the generated story
+        showModal(data.zone_name, data.story, data.stats || {});
+
+    } catch (error) {
+        console.error('Error generating story:', error);
+        closeModal();
+        alert(`Failed to generate story: ${error.message}`);
+    }
 }
 
 // ============================================================================
 // MODAL SYSTEM
 // ============================================================================
+
+function showLoadingModal(zoneId) {
+    const modal = document.getElementById('storyModal');
+    const titleEl = document.getElementById('modalZoneTitle');
+    const contentEl = document.getElementById('storyContent');
+
+    titleEl.textContent = 'Generating Story...';
+    contentEl.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <div class="spinner" style="
+                border: 4px solid rgba(255, 20, 147, 0.2);
+                border-top: 4px solid #FF1493;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 20px;
+            "></div>
+            <p>The AI is analyzing your performance at this location...</p>
+            <p style="opacity: 0.7; font-size: 0.9em;">This may take a few seconds</p>
+        </div>
+    `;
+
+    // Hide stats section during loading
+    document.getElementById('modalStats').style.display = 'none';
+
+    modal.classList.add('active');
+
+    gsap.timeline()
+        .fromTo('.modal-content',
+            { scale: 0.7, opacity: 0, y: 100 },
+            { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'back.out(1.7)' }
+        );
+}
 
 function showModal(zoneName, story, stats) {
     const modal = document.getElementById('storyModal');
@@ -466,13 +548,24 @@ function showModal(zoneName, story, stats) {
         document.getElementById('modalStats').style.display = 'none';
     }
 
-    modal.classList.add('active');
+    // If modal is already active (from loading state), just update content
+    if (modal.classList.contains('active')) {
+        gsap.to('.modal-content', {
+            scale: 1,
+            opacity: 1,
+            y: 0,
+            duration: 0.3,
+            ease: 'power2.out'
+        });
+    } else {
+        modal.classList.add('active');
 
-    gsap.timeline()
-        .fromTo('.modal-content',
-            { scale: 0.7, opacity: 0, y: 100 },
-            { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'back.out(1.7)' }
-        );
+        gsap.timeline()
+            .fromTo('.modal-content',
+                { scale: 0.7, opacity: 0, y: 100 },
+                { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: 'back.out(1.7)' }
+            );
+    }
 }
 
 function closeModal() {

@@ -156,7 +156,7 @@ async function handleFormSubmit() {
                 gameName: gameName,
                 tagLine: tagLine,
                 platform: platform,
-                matchCount: 30
+                matchCount: 15
             })
         });
 

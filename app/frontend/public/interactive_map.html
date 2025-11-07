@@ -1229,30 +1229,31 @@
             function createZones() {
                 console.log("📍 Creating zones...");
 
-                if (!playerData || !playerData.zones) {
-                    console.warn("⚠️ No zone data available");
-                    return;
-                }
-
                 const container = document.getElementById("zonesContainer");
                 let circleCount = 0;
                 const uniqueZoneIds = new Set();
 
-                // Loop through each zone in player data
-                for (let zoneId in playerData.zones) {
-                    const zoneData = playerData.zones[zoneId];
+                // Initialize zones object if not present
+                if (!playerData.zones) {
+                    playerData.zones = {};
+                }
+
+                // Loop through ALL zone positions (not just cached zones)
+                // This ensures all zones are clickable, even if stories aren't generated yet
+                for (let zoneId in zonePositions) {
                     const position = zonePositions[zoneId];
 
-                    if (!position) {
-                        console.warn(
-                            `⚠️ No position defined for zone: ${zoneId}`,
-                        );
-                        continue;
-                    }
+                    // Get cached zone data, or create placeholder for on-demand generation
+                    const zoneData = playerData.zones[zoneId] || {
+                        zone_name: position.label,
+                        story: null,  // null = not cached, will trigger on-demand generation
+                        stats: {}
+                    };
 
                     if (DEBUG_MODE) {
+                        const cached = playerData.zones[zoneId] ? "✅ cached" : "⏳ on-demand";
                         console.log(
-                            `📍 ${position.emoji} ${position.label}: x: ${position.x}%, y: ${position.y}%`,
+                            `📍 ${position.emoji} ${position.label}: x: ${position.x}%, y: ${position.y}% (${cached})`,
                         );
                     }
 
@@ -1264,21 +1265,25 @@
                 // Create additional zones (multiple locations for same zone data)
                 // These don't count toward total - they're just extra clickable spots
                 additionalZones.forEach((extraZone) => {
-                    const zoneData = playerData.zones[extraZone.dataId];
-                    if (zoneData) {
-                        createSingleZone(
-                            container,
-                            extraZone.dataId,
-                            zoneData,
-                            extraZone,
-                        );
-                        circleCount++;
+                    const zoneData = playerData.zones[extraZone.dataId] || {
+                        zone_name: extraZone.label,
+                        story: null,
+                        stats: {}
+                    };
 
-                        if (DEBUG_MODE) {
-                            console.log(
-                                `📍 ${extraZone.emoji} ${extraZone.label} (extra): x: ${extraZone.x}%, y: ${extraZone.y}%`,
-                            );
-                        }
+                    createSingleZone(
+                        container,
+                        extraZone.dataId,
+                        zoneData,
+                        extraZone,
+                    );
+                    circleCount++;
+
+                    if (DEBUG_MODE) {
+                        const cached = playerData.zones[extraZone.dataId] ? "✅ cached" : "⏳ on-demand";
+                        console.log(
+                            `📍 ${extraZone.emoji} ${extraZone.label} (extra): x: ${extraZone.x}%, y: ${extraZone.y}% (${cached})`,
+                        );
                     }
                 });
 
@@ -1371,7 +1376,7 @@
             }
 
             // Handles when a zone is clicked
-            function handleZoneClick(zoneId, zoneData, position) {
+            async function handleZoneClick(zoneId, zoneData, position) {
                 console.log("🎯 Zone clicked:", zoneId);
 
                 // Track zone discovery
@@ -1387,11 +1392,58 @@
                 }
 
                 const zoneName = zoneData.zone_name || position.label;
-                const story =
-                    zoneData.story || "No story available for this zone.";
                 const emoji = position.emoji || "🎯";
 
-                showModal(zoneName, story, emoji);
+                // Check if story exists in cache
+                if (!zoneData.story) {
+                    console.log(`📡 Story not cached for ${zoneId}, generating on-demand...`);
+
+                    // Show loading state
+                    showModal(zoneName, "⏳ Generating your story... This may take a moment.", emoji);
+
+                    try {
+                        // Call on-demand story generation API
+                        const riotId = `${playerData.playerInfo.gameName}-${playerData.playerInfo.tagLine}`;
+                        const storyMode = playerData.storyMode || 'coach';
+
+                        const response = await fetch(`/api/generate-story/${riotId}/${zoneId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ storyMode: storyMode })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Failed to generate story: ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        console.log(`✅ Story generated for ${zoneId}`);
+
+                        // Update zoneData with new story
+                        zoneData.story = result.story;
+                        zoneData.zone_name = result.zone_name;
+
+                        // Update localStorage cache
+                        if (!playerData.zones) {
+                            playerData.zones = {};
+                        }
+                        playerData.zones[zoneId] = zoneData;
+                        localStorage.setItem('rewindData', JSON.stringify(playerData));
+
+                        // Update modal with generated story
+                        showModal(result.zone_name, result.story, emoji);
+
+                    } catch (error) {
+                        console.error(`❌ Error generating story for ${zoneId}:`, error);
+                        showModal(zoneName, `Failed to generate story: ${error.message}\n\nPlease try again or refresh the page.`, emoji);
+                    }
+                } else {
+                    // Story exists in cache, show it
+                    const story = zoneData.story;
+                    showModal(zoneName, story, emoji);
+                }
             }
 
             // Updates the progress counter UI
