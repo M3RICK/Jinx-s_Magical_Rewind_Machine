@@ -44,21 +44,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Load player data from localStorage
 function loadPlayerData() {
-    console.log('🔍 Loading data from localStorage...');
+    console.log('Loading data from localStorage...');
     const rawData = localStorage.getItem('rewindData');
 
     if (!rawData) {
-        console.error('❌ No data in localStorage!');
+        console.error('No data in localStorage');
         alert('No rewind data found. Please analyze a player first!');
         window.location.href = 'index.html';
         return;
     }
 
-    console.log('✅ Found data in localStorage:', rawData.substring(0, 200) + '...');
+    console.log('Found data in localStorage:', rawData.substring(0, 200) + '...');
 
     try {
         playerData = JSON.parse(rawData);
-        console.log('✅ Parsed player data successfully:', playerData);
+        console.log('Parsed player data successfully:', playerData);
         console.log('Player info:', playerData.playerInfo);
         console.log('Zones:', Object.keys(playerData.zones || {}));
         console.log('Metadata:', playerData.metadata);
@@ -66,7 +66,7 @@ function loadPlayerData() {
         updatePlayerInfo();
         // updateStatsCard(); // Disabled - stats card elements not in HTML
     } catch (error) {
-        console.error('❌ Error parsing player data:', error);
+        console.error('Error parsing player data:', error);
         console.error('Raw data:', rawData);
         alert('Error loading data. Please try again.');
         window.location.href = 'index.html';
@@ -105,13 +105,13 @@ function centerCameraOnMap() {
     camera.y = mapState.height / 2;
 
     // Apply initial zoom
-    console.log('📹 Setting initial zoom to:', camera.zoom);
+    console.log('Setting initial zoom to:', camera.zoom);
     applyCameraTransform();
 }
 
 // Create playable character
 function createCharacter() {
-    console.log('🎮 Creating character...');
+    console.log('Creating character...');
 
     const charElement = document.createElement('div');
     charElement.id = 'character';
@@ -130,7 +130,7 @@ function createCharacter() {
     character.x = mapState.width / 2;
     character.y = mapState.height / 2;
 
-    console.log('✅ Character created at:', character.x, character.y);
+    console.log('Character created at:', character.x, character.y);
     console.log('Map size:', mapState.width, 'x', mapState.height);
 
     updateCharacterPosition();
@@ -225,7 +225,7 @@ function animatePageEntrance() {
 
     // Character appears immediately (no delay!)
     if (character.element) {
-        console.log('🎬 Animating character entrance');
+        console.log('Animating character entrance');
         gsap.from(character.element, {
             scale: 0,
             opacity: 0,
@@ -234,7 +234,7 @@ function animatePageEntrance() {
             delay: 0.3
         });
     } else {
-        console.warn('⚠️ Character element not found for animation');
+        console.warn('Character element not found for animation');
     }
 }
 
@@ -668,7 +668,7 @@ function setupKeyboardControls() {
             e.preventDefault();
             const randomX = Math.random() * mapState.width;
             const randomY = Math.random() * mapState.height;
-            console.log('🎯 SPACEBAR pressed - moving to random spot:', randomX, randomY);
+            console.log('SPACEBAR pressed - moving to random spot:', randomX, randomY);
             moveCharacterTo(randomX, randomY);
             return;
         }
@@ -702,7 +702,7 @@ function setupKeyboardControls() {
         }
 
         e.preventDefault();
-        console.log(`⌨️ Keyboard: Moving character by dx=${dx}, dy=${dy}`);
+        console.log(`Keyboard: Moving character by dx=${dx}, dy=${dy}`);
         moveCharacterTo(character.x + dx, character.y + dy);
     });
 }
@@ -726,7 +726,7 @@ function startGameLoop() {
 
 async function handleRefresh() {
     const refreshBtn = document.getElementById('refreshBtn');
-    refreshBtn.textContent = '⏳ Refreshing...';
+    refreshBtn.textContent = 'Refreshing...';
     refreshBtn.disabled = true;
 
     try {
@@ -755,7 +755,7 @@ async function handleRefresh() {
     } catch (error) {
         console.error('Refresh error:', error);
         alert(`Failed to refresh: ${error.message}`);
-        refreshBtn.textContent = '🔄 Refresh';
+        refreshBtn.textContent = 'Refresh';
         refreshBtn.disabled = false;
     }
 }

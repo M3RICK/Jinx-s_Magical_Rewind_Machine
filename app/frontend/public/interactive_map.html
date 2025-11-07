@@ -1406,7 +1406,11 @@
                         const riotId = `${playerData.playerInfo.gameName}-${playerData.playerInfo.tagLine}`;
                         const storyMode = playerData.storyMode || 'coach';
 
-                        const response = await fetch(`/api/generate-story/${riotId}/${zoneId}`, {
+                        // Properly encode URL components to handle spaces and special characters
+                        const encodedRiotId = encodeURIComponent(riotId);
+                        const encodedZoneId = encodeURIComponent(zoneId);
+
+                        const response = await fetch(`/api/generate-story/${encodedRiotId}/${encodedZoneId}`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -1807,8 +1811,11 @@
             // Format riot_id for API call (replace # with -)
             const riotId = `${playerData.playerInfo.gameName}-${playerData.playerInfo.tagLine}`;
 
+            // Properly encode URL component to handle spaces and special characters
+            const encodedRiotId = encodeURIComponent(riotId);
+
             // Call the card generation API
-            fetch(`/api/generate-card/${riotId}`)
+            fetch(`/api/generate-card/${encodedRiotId}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

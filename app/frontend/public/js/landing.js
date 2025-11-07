@@ -174,7 +174,7 @@ async function handleFormSubmit() {
         console.error('Error:', error);
 
         // Show error message
-        errorMessage.textContent = `💥 Oops! ${error.message}. Try again!`;
+        errorMessage.textContent = `Oops! ${error.message}. Try again!`;
         errorMessage.classList.remove('hidden');
 
         // Shake the form on error
@@ -301,7 +301,7 @@ window.addEventListener('load', () => {
             const viewMapBtn = document.createElement('button');
             viewMapBtn.id = 'viewMapBtn';
             viewMapBtn.className = 'w-full mt-4 py-3 bg-jinx-blue/20 border border-jinx-blue text-jinx-blue font-semibold rounded-lg hover:bg-jinx-blue hover:text-white transition-all duration-300 font-body';
-            viewMapBtn.textContent = '🗺️ View Previous Rewind';
+            viewMapBtn.textContent = 'View Previous Rewind';
             viewMapBtn.onclick = () => {
                 window.location.href = 'map.html';
             };
