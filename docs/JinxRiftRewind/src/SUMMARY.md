@@ -2,29 +2,31 @@
 
 [Introduction](./introduction.md)
 
-# About the Project
-- [The Problem We're Solving](./problem.md)
-- [What RiftRewind Does](./features.md)
+---
 
-# Features Deep Dive
-- [Ignite the Rewind](./ignite-the-rewind.md)
-- [Player Cards](./player-cards.md)
-- [Vi's Direct Coaching](./ai-coaching.md)
+- [About the Project]()
+    - [The Problem We're Solving](./problem.md)
+    - [What RiftRewind Does](./features.md)
 
-# Technical Documentation
-- [Architecture Overview](./architecture.md)
-- [Tech Stack](./tech-stack.md)
-- [Data Management](./data-management.md)
-- [AI Integration](./ai-integration.md)
+- [Features Deep Dive]()
+    - [Ignite the Rewind](./ignite-the-rewind.md)
+    - [Player Cards](./player-cards.md)
+    - [AI Coaching](./ai-coaching.md)
 
-# Using RiftRewind
-- [Getting Started](./getting-started.md)
-- [User Guide](./user-guide.md)
+- [Technical Documentation]()
+    - [Architecture Overview](./architecture.md)
+    - [Tech Stack](./tech-stack.md)
+    - [Data Management](./data-management.md)
+    - [AI Integration](./ai-integration.md)
 
-# Project Journey
-- [Challenges & Learnings](./challenges.md)
-- [Future Roadmap](./roadmap.md)
+- [Using RiftRewind]()
+    - [Getting Started](./getting-started.md)
+    - [User Guide](./user-guide.md)
 
-# Additional Info
-- [Team & Credits](./team.md)
-- [Contributing](./contributing.md)
+- [Project Journey]()
+    - [Challenges & Learnings](./challenges.md)
+    - [Future Roadmap](./roadmap.md)
+
+- [Additional Info]()
+    - [Team & Credits](./team.md)
+    - [Contributing](./contributing.md)
