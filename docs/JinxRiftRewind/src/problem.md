@@ -14,7 +14,7 @@ Most improvement resources offer one-size-fits-all advice. "Ward more," "CS bett
 
 ### 3. Lack of Personalization
 
-Your playstyle is unique. You have favorite champions, preferred roles, preffered item builds and specific strengths and weaknesses. But current tools treat every player the same way.
+Your playstyle is unique. You have favorite champions, preferred roles, preferred item builds and specific strengths and weaknesses. But current tools treat every player the same way.
 
 ### 4. No Memory or Progress Tracking
 
