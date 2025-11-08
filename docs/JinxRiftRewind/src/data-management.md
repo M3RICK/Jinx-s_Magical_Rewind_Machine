@@ -258,8 +258,6 @@ Attributes:
 - token_count: Integer (for tracking)
 ```
 
-**TTL:** Conversations expire after 30 days of inactivity (planned)
-
 #### Sessions Table
 
 Authentication session management:
@@ -275,8 +273,6 @@ Attributes:
 - last_accessed: ISO timestamp
 - ip_address: String (optional, for security)
 ```
-
-**TTL:** Sessions expire after 24 hours
 
 #### MapStories Table
 
@@ -295,8 +291,6 @@ Attributes:
 - generated_at: ISO timestamp
 - match_ids_analyzed: JSON array (for cache invalidation)
 ```
-
-**Cache Duration:** 24 hours
 
 **Invalidation:** New matches trigger regeneration
 
