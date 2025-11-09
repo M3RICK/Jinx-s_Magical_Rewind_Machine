@@ -559,7 +559,22 @@ def generate_zone_story_endpoint(riot_id, zone_id):
                 print(f"  Generating story using cached stats (fast: ~1-2s)")
                 print(f"  Stats keys: {list(zone_stats.keys())}")
                 from API.story.story_generator import generate_zone_story
-                story_text = generate_zone_story(zone_id, zone_stats, story_mode)
+
+                try:
+                    story_text = generate_zone_story(zone_id, zone_stats, story_mode)
+                except Exception as gen_error:
+                    if "RATE_LIMIT_ERROR" in str(gen_error):
+                        return jsonify({
+                            'error': 'Too many requests. Please wait a moment and try again.',
+                            'zone_id': zone_id,
+                            'retry_after': 10
+                        }), 429
+
+                    print(f"  ERROR: Story generation failed: {gen_error}")
+                    return jsonify({
+                        'error': f'Failed to generate story for zone {zone_id}. Please try again.',
+                        'zone_id': zone_id
+                    }), 500
 
                 if story_text:
                     # Store the generated story
@@ -600,7 +615,8 @@ def generate_zone_story_endpoint(riot_id, zone_id):
                 return None, "Invalid riot_id format"
 
             game_name, tag_line = parts
-            platform = player.platform if hasattr(player, 'platform') else 'euw1'
+            # Use the player's actual region from the database (stored as 'region', not 'platform')
+            platform = player.region
 
             async with Player(game_name, tag_line, platform=platform) as player_obj:
                 # Load profile and matches
@@ -627,7 +643,12 @@ def generate_zone_story_endpoint(riot_id, zone_id):
 
                 # Generate story
                 from API.story.story_generator import generate_zone_story
-                story_text = generate_zone_story(zone_id, zone_stats, story_mode)
+                try:
+                    story_text = generate_zone_story(zone_id, zone_stats, story_mode)
+                except Exception as gen_error:
+                    if "RATE_LIMIT_ERROR" in str(gen_error):
+                        return None, "Too many requests. Please wait a moment and try again."
+                    raise
 
                 if not story_text:
                     return None, "Failed to generate story"
@@ -654,11 +675,30 @@ def generate_zone_story_endpoint(riot_id, zone_id):
         result, error = run_async(generate_story_for_zone())
 
         if error:
+            # Check if it's a rate limit error
+            if "Too many requests" in error or "RATE_LIMIT" in error:
+                return jsonify({
+                    'error': error,
+                    'zone_id': zone_id,
+                    'retry_after': 10
+                }), 429
             return jsonify({'error': error}), 500
 
         return jsonify(result), 200
 
     except Exception as e:
+        error_str = str(e)
+
+        # Check if it's a rate limit error
+        if "RATE_LIMIT_ERROR" in error_str or "Too many requests" in error_str.lower():
+            error_details = {
+                'error': 'Too many requests. Please wait a moment and try again.',
+                'zone_id': zone_id,
+                'retry_after': 10
+            }
+            print(f"Rate limit error in /api/generate-story: {e}")
+            return jsonify(error_details), 429
+
         error_details = {
             'error': 'Failed to generate story',
             'details': str(e),
@@ -752,9 +792,10 @@ def generate_card(riot_id):
         intro_story = next((s for s in stories if s['zone_id'] == 'intro'), None) if stories else None
         story_mode = intro_story.get('story_mode', 'coach') if intro_story else 'coach'
 
-        platform = 'euw1'  # Default platform
+        # Use the player's actual region/platform from the database
+        platform = db_player.region
 
-        print(f"Fetching fresh player data from Riot API for {riot_id_parsed}...")
+        print(f"Fetching fresh player data from Riot API for {riot_id_parsed} on {platform}...")
 
         # Fetch FRESH data from Riot API using Player class
         async def fetch_player_data():
@@ -821,16 +862,24 @@ def generate_card(riot_id):
 
         # Generate AI-powered title and story for the card
         print(f"Generating AI card content ({story_mode} mode)...")
-        card_content = generate_card_content_with_fallback(
-            player_stats={
-                'champion_played': champion_played,
-                'games_played': total_matches,
-                'kda': kda,
-                'rank': rank,
-                'winrate': winrate
-            },
-            story_mode=story_mode
-        )
+        try:
+            card_content = generate_card_content_with_fallback(
+                player_stats={
+                    'champion_played': champion_played,
+                    'games_played': total_matches,
+                    'kda': kda,
+                    'rank': rank,
+                    'winrate': winrate
+                },
+                story_mode=story_mode
+            )
+        except Exception as gen_error:
+            if "RATE_LIMIT_ERROR" in str(gen_error):
+                return jsonify({
+                    'error': 'Too many requests. Please wait a moment and try again.',
+                    'retry_after': 10
+                }), 429
+            raise
 
         title = card_content.get('title', 'The Legend')
         story = card_content.get('story', 'A summoner of great skill')
@@ -864,6 +913,16 @@ def generate_card(riot_id):
         }), 200
 
     except Exception as e:
+        error_str = str(e)
+
+        # Check if it's a rate limit error
+        if "RATE_LIMIT_ERROR" in error_str or "Too many requests" in error_str.lower():
+            print(f"Rate limit error in /api/generate-card: {e}")
+            return jsonify({
+                'error': 'Too many requests. Please wait a moment and try again.',
+                'retry_after': 10
+            }), 429
+
         print(f"Error generating card: {e}")
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500

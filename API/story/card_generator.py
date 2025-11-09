@@ -6,6 +6,7 @@ from .bedrock_client import create_bedrock_client
 from langchain_core.messages import SystemMessage, HumanMessage
 import time
 import os
+import json
 
 USE_MOCK = os.getenv('USE_MOCK_AI', 'false').lower() == 'true'
 

@@ -40,11 +40,10 @@ OUTPUT FORMAT:
 
 def create_bedrock_client():
     """
-    Create Bedrock client using the EXACT same pattern as ai_chat.py.
-    This is the working implementation.
+    Create Bedrock client for story generation.
     """
     chat = ChatBedrock(
-        model_id="eu.anthropic.claude-sonnet-4-5-20250929-v1:0",  # Same as ai_chat.py
+        model_id="eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
         region_name=os.getenv('AWS_DEFAULT_REGION', 'eu-west-3'),
         model_kwargs={
             "temperature": 0.7,
@@ -56,47 +55,53 @@ def create_bedrock_client():
 
 def generate_story(prompt, zone_id=None, mode='coach'):
     """
-    Generate zone story using the EXACT same logic as ai_chat.py.
-    This matches the working chat implementation.
+    Generate zone story using Bedrock AI.
     """
     if USE_MOCK:
         print(f"[MOCK MODE] Using mock AI responses in {mode.upper()} mode")
         return generate_mock_story(zone_id or "default", mode=mode)
 
-    # Create chat using the same function as ai_chat.py
     chat = create_bedrock_client()
 
-    # Build messages array (same pattern as ai_chat.py)
     messages = [
         SystemMessage(content=STORY_SYSTEM_PROMPT),
         HumanMessage(content=prompt)
     ]
 
-    # Use EXACT same retry logic as ai_chat.py
-    max_retries = 3
+    max_retries = 5
     for attempt in range(max_retries):
         try:
-            # Invoke with messages (same as ai_chat.py line 98)
             response = chat.invoke(messages)
-
-            # Return the content (same as ai_chat.py line 109)
             return response.content.strip()
 
         except Exception as retry_error:
-            # Same error handling as ai_chat.py (lines 100-106)
             error_str = str(retry_error)
-            if "Too many connections" in error_str and attempt < max_retries - 1:
-                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                print(f"\nRate limited. Waiting {wait_time}s before retry...")
+
+            # Check for rate limiting errors
+            is_rate_limit = any(keyword in error_str.lower() for keyword in [
+                "too many requests",
+                "too many connections",
+                "throttlingexception",
+                "throttling",
+                "rate limit"
+            ])
+
+            if is_rate_limit and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 2
+                print(f"Rate limited. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})...")
                 time.sleep(wait_time)
             else:
-                # Failed permanently - log detailed error
-                print(f"   ERROR: AI story generation failed for zone {zone_id}")
-                print(f"   Error type: {type(retry_error).__name__}")
-                print(f"   Error message: {error_str}")
+                print(f"ERROR: AI story generation failed for zone {zone_id}")
+                print(f"Error type: {type(retry_error).__name__}")
+                print(f"Error message: {error_str}")
+
+                if is_rate_limit:
+                    print("RATE LIMIT ERROR - User should wait before retrying")
+                    raise Exception("RATE_LIMIT_ERROR: Too many requests to AI service. Please wait a moment and try again.")
+
                 import traceback
                 traceback.print_exc()
                 return None
 
-    print(f"   ERROR: AI story generation failed after {max_retries} retries for zone {zone_id}")
-    return None
+    print(f"ERROR: AI story generation failed after {max_retries} retries for zone {zone_id}")
+    raise Exception("RATE_LIMIT_ERROR: Too many requests to AI service. Please wait a moment and try again.")
