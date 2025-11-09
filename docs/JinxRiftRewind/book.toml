@@ -1,0 +1,13 @@
+[book]
+title = "Jinx's Rift Rewind"
+authors = ["CrackedOnTiti"]
+language = "en"
+multilingual = false
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = true
+
+[output.html]
+default-theme = "coal"

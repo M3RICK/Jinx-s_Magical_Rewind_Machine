@@ -4,7 +4,7 @@ aiohttp
 
 # Data analysis
 pandas==2.3.3
-numpy==2.3.4
+numpy
 
 # Utilities
 python-dotenv==1.2.1
