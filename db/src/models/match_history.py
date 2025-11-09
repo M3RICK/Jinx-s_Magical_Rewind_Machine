@@ -1,7 +1,25 @@
 from datetime import datetime
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
+from decimal import Decimal
 import time
+
+
+def convert_floats_to_decimal(obj):
+    """
+    Recursively convert all float values to Decimal for DynamoDB compatibility.
+
+    DynamoDB doesn't support Python float types - only Decimal.
+    This function walks through nested dicts and lists to convert all floats.
+    """
+    if isinstance(obj, list):
+        return [convert_floats_to_decimal(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {key: convert_floats_to_decimal(value) for key, value in obj.items()}
+    elif isinstance(obj, float):
+        return Decimal(str(obj))
+    else:
+        return obj
 
 
 @dataclass
@@ -29,7 +47,7 @@ class MatchHistory:
             'puuid': self.puuid,
             'match_id': self.match_id,
             'timestamp': self.timestamp,
-            'match_data': self.match_data,
+            'match_data': convert_floats_to_decimal(self.match_data),
             'created_at': self.created_at
         }
 

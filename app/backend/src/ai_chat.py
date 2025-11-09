@@ -66,7 +66,9 @@ def create_chat():
             "max_tokens": 4092
         }
     )
-    return chat
+    # Bind the League of Legends tools to the chat model
+    chat_with_tools = chat.bind(tools=TOOL_DEFINITIONS)
+    return chat_with_tools
 
 def chat_loop():
     print("Rift Rewind AI Chat")

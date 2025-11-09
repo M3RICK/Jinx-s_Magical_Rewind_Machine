@@ -35,16 +35,17 @@ class MatchRepository(BaseRepository):
         Returns:
             List of MatchHistory objects
         """
-        params = {
+        key_condition = Key('puuid').eq(puuid)
+
+        query_params = {
             'IndexName': 'TimestampIndex',
-            'KeyConditionExpression': Key('puuid').eq(puuid),
             'ScanIndexForward': False  # Sort descending (newest first)
         }
 
         if limit:
-            params['Limit'] = limit
+            query_params['Limit'] = limit
 
-        items = self.query(**params)
+        items = self.query(key_condition, **query_params)
         return [MatchHistory.from_dynamodb_item(item) for item in items]
 
     def get_recent_matches(self, puuid: str, count: int = 20) -> List[MatchHistory]:
