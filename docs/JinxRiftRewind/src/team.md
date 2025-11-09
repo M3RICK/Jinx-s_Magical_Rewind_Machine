@@ -39,29 +39,37 @@
 
 ### Aymeric L.
 
-**Role:** Riot API Integration & Frontend Lead
+  **Role:** Riot API Integration & Frontend Development Lead
 
-**Responsibilities:**
-- Riot Games API integration and data scraping
-- Player data fetching and processing pipeline
-- Match history and timeline analysis
-- Frontend development and UI/UX
-- Interactive map implementation
-  - Zone-based feedback system
-  - Camera controls and smooth navigation
-  - Map animations and interactions
-- AI Coaching session interface
-- Frontend-backend integration
+  **Responsibilities:**
+  - Riot Games API integration and data scraping
+  - Player data fetching and processing pipeline
+  - Match history and timeline analysis
+  - Zone analyzer backend logic
+  - Frontend development and UI/UX (picked up Hugo's responsibilities)
+  - Interactive map implementation
+    - Zone-based feedback system
+    - LoL-style camera controls (edge scrolling + mouse wheel zoom)
+    - Map animations and visual effects (explosions, portals, confetti)
+    - Smooth navigation and transformations
+  - Landing page design and GSAP animations
+  - AI Coaching session interface
+  - Frontend-backend integration
 
-**Key Contributions:**
-- Built the `API/` module for Riot API access using Pulsefire
-- Designed the Player model for data aggregation
-- Created zone analyzer for map-based performance breakdown
-- Developed the interactive Summoner's Rift map with clickable zones
-- Implemented smooth camera movement and zoom controls
-- Built the coaching chat interface with match history sidebar
+  **Key Contributions:**
+  - Built the `API/` module for Riot API access using Pulsefire
+  - Designed the Player model for data aggregation
+  - Created zone analyzer for map-based performance breakdown
+  - Developed the interactive Summoner's Rift map with clickable zones
+  (`interactive_map.html`)
+  - Built the landing page with GSAP animations (`index.html`)
+  - Implemented camera system with zoom/pan controls
+  - Created modal system with portal effects and explosions
+  - Built the coaching chat interface with match history sidebar
+  - Designed progress tracking and easter egg systems (monkey bombs)
 
-**Technologies:** Python (Pulsefire, aiohttp), HTML5, CSS3, JavaScript (ES6+), Canvas API, Riot Games API
+  **Technologies:** Python (Pulsefire, aiohttp, pandas, numpy), HTML5, CSS3,
+   JavaScript (ES6+), GSAP, TailwindCSS, Riot Games API
 
 ---
 
