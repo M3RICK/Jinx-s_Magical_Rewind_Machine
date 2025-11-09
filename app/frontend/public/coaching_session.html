@@ -348,7 +348,7 @@
         <!-- LEFT SIDE: Match History -->
         <div class="match-list-container">
             <div class="match-list-title">
-                📊 Your Recent Matches
+                Your Recent Matches
             </div>
             <div id="matchList">
                 <!-- Matches will be populated here -->
@@ -393,43 +393,27 @@
                     onkeypress="handleKeyPress(event)"
                 />
                 <button class="btn-send" id="sendBtn" onclick="sendMessage()">
-                    Send 💬
+                    Send
                 </button>
             </div>
         </div>
     </div>
 
     <script>
-        // ====================================================
-        // BACKEND INTEGRATION GUIDE FOR YOUR TEAMMATE
-        // ====================================================
-        //
-        // Two main TODOs:
-        //
-        // 1. MATCH HISTORY: Implement getPlayerMatches() function (line ~520)
-        //    - Returns array of match objects with: result, champion, kda, cs, etc.
-        //    - Use playerData from localStorage
-        //
-        // 2. AI CHAT: Implement POST /api/coach endpoint
-        //    - Receives: message, playerData, conversationHistory, selectedMatch
-        //    - Returns: { response: "AI coaching text" }
-        //
-        // Everything else (UI, animations, chat flow) is already done!
-        // ====================================================
-
         // ============================================
         // CONFIGURATION
         // ============================================
         const API_URL = "";
         let playerData = null;
         let selectedMatch = null;
+        let matchesData = [];  // Store all match data
         let conversationHistory = [];
 
         // ============================================
         // INITIALIZATION
         // ============================================
         window.addEventListener('load', () => {
-            console.log("👊 Vi's Coaching Session Loading...");
+            console.log("Vi's Coaching Session Loading...");
             loadPlayerData();
             displayMatches();
         });
@@ -468,26 +452,19 @@
         // MATCH HISTORY DISPLAY
         // ============================================
 
-        function displayMatches() {
+        async function displayMatches() {
             const matchList = document.getElementById('matchList');
 
-            // ====================================================
-            // TODO FOR BACKEND TEAM: Replace this with real data
-            // ====================================================
-            // Expected data structure:
-            // matches = [
-            //   {
-            //     result: 'win' or 'loss',
-            //     champion: 'Champion Name',
-            //     championIcon: '🦊' (emoji or image URL),
-            //     kda: '12/3/8' (kills/deaths/assists),
-            //     cs: '245' (creep score),
-            //     duration: '32:15' (match time),
-            //     role: 'Mid' (or Top, Jungle, ADC, Support),
-            //     timeAgo: '2 hours ago' (formatted time)
-            //   }
-            // ]
-            const matches = getPlayerMatches(); // <-- REPLACE THIS FUNCTION
+            // Show loading state
+            matchList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    <p>Loading your matches...</p>
+                </div>
+            `;
+
+            // Fetch matches from API
+            const matches = await getPlayerMatches();
 
             if (matches.length === 0) {
                 matchList.innerHTML = `
@@ -501,6 +478,9 @@
                 `;
                 return;
             }
+
+            // Store matches for later reference
+            matchesData = matches;
 
             matchList.innerHTML = matches.map((match, index) => `
                 <div class="match-card" onclick="selectMatch(${index})">
@@ -533,58 +513,36 @@
         }
 
         // ====================================================
-        // TODO FOR BACKEND TEAM: Implement this function
+        // FETCH MATCH DATA FROM API
         // ====================================================
-        // This should return match data from playerData or API
-        function getPlayerMatches() {
-            // PLACEHOLDER DATA - Remove this and return real matches
-            return [
-                {
-                    result: 'win',
-                    champion: 'Ahri',
-                    championIcon: '🦊',
-                    kda: '12/3/8',
-                    cs: '245',
-                    duration: '32:15',
-                    role: 'Mid',
-                    timeAgo: '2 hours ago'
-                },
-                {
-                    result: 'loss',
-                    champion: 'Yasuo',
-                    championIcon: '⚔️',
-                    kda: '5/8/6',
-                    cs: '198',
-                    duration: '28:42',
-                    role: 'Mid',
-                    timeAgo: '5 hours ago'
-                },
-                {
-                    result: 'win',
-                    champion: 'Zed',
-                    championIcon: '🥷',
-                    kda: '18/4/5',
-                    cs: '267',
-                    duration: '35:20',
-                    role: 'Mid',
-                    timeAgo: '1 day ago'
-                }
-            ];
+        async function getPlayerMatches() {
+            if (!playerData || !playerData.session_token) {
+                console.error("No session token available");
+                return [];
+            }
 
-            // Example implementation:
-            // if (!playerData || !playerData.metadata || !playerData.metadata.matches) {
-            //     return [];
-            // }
-            // return playerData.metadata.matches.map(match => ({
-            //     result: match.win ? 'win' : 'loss',
-            //     champion: match.championName,
-            //     championIcon: getChampionEmoji(match.championName),
-            //     kda: `${match.kills}/${match.deaths}/${match.assists}`,
-            //     cs: match.totalMinionsKilled.toString(),
-            //     duration: formatDuration(match.gameDuration),
-            //     role: match.role,
-            //     timeAgo: formatTimeAgo(match.gameCreation)
-            // }));
+            try {
+                const response = await fetch(`${API_URL}/api/matches`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_token: playerData.session_token
+                    })
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to fetch matches:", response.status);
+                    return [];
+                }
+
+                const data = await response.json();
+                return data.matches || [];
+            } catch (error) {
+                console.error("Error fetching matches:", error);
+                return [];
+            }
         }
 
         function selectMatch(index) {
@@ -600,7 +558,7 @@
                 }
             });
 
-            console.log("📊 Match selected:", index);
+            console.log("Match selected:", index);
         }
 
         // ============================================
@@ -621,8 +579,8 @@
 
             if (!message) return;
 
-            // Add user message to chat
-            addMessage(message, 'user');
+            // Display user message in chat UI (but don't add to conversationHistory yet)
+            displayMessageInUI(message, 'user');
             input.value = '';
 
             // Disable input while processing
@@ -639,13 +597,38 @@
                 // Remove typing indicator
                 removeTypingIndicator();
 
-                // Add AI response
-                addMessage(response, 'ai');
+                // Now add both messages to conversation history (in correct order)
+                conversationHistory.push({
+                    role: 'user',
+                    content: message,
+                    timestamp: new Date().toISOString()
+                });
+                conversationHistory.push({
+                    role: 'ai',
+                    content: response,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Display AI response in chat UI
+                displayMessageInUI(response, 'ai');
 
             } catch (error) {
-                console.error("❌ Error calling AI:", error);
+                console.error("Error calling AI:", error);
                 removeTypingIndicator();
-                addMessage("Sorry, I couldn't process that. Try again.", 'ai');
+
+                // Add error message to history and UI
+                const errorMsg = "Sorry, I couldn't process that. Try again.";
+                conversationHistory.push({
+                    role: 'user',
+                    content: message,
+                    timestamp: new Date().toISOString()
+                });
+                conversationHistory.push({
+                    role: 'ai',
+                    content: errorMsg,
+                    timestamp: new Date().toISOString()
+                });
+                displayMessageInUI(errorMsg, 'ai');
             } finally {
                 // Re-enable input
                 input.disabled = false;
@@ -654,24 +637,7 @@
             }
         }
 
-        function renderSimpleMarkdown(text) {
-            // Simple markdown renderer - no external libraries
-            // Escape HTML first for security
-            let html = escapeHtml(text);
-
-            // Bold: **text** -> <strong>text</strong>
-            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
-            // Italic: *text* -> <em>text</em>
-            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-            // Line breaks
-            html = html.replace(/\n/g, '<br>');
-
-            return html;
-        }
-
-        function addMessage(text, sender) {
+        function displayMessageInUI(text, sender) {
             const messagesContainer = document.getElementById('chatMessages');
 
             const messageDiv = document.createElement('div');
@@ -701,13 +667,23 @@
 
             // Scroll to bottom
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
 
-            // Add to conversation history
-            conversationHistory.push({
-                role: sender,
-                content: text,
-                timestamp: new Date().toISOString()
-            });
+        function renderSimpleMarkdown(text) {
+            // Simple markdown renderer - no external libraries
+            // Escape HTML first for security
+            let html = escapeHtml(text);
+
+            // Bold: **text** -> <strong>text</strong>
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            // Italic: *text* -> <em>text</em>
+            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+            // Line breaks
+            html = html.replace(/\n/g, '<br>');
+
+            return html;
         }
 
         function showTypingIndicator() {
@@ -743,23 +719,6 @@
         // AI BACKEND INTEGRATION
         // ============================================
 
-        // ====================================================
-        // TODO FOR BACKEND TEAM: Implement AI coaching endpoint
-        // ====================================================
-        // Endpoint: POST /api/coach
-        //
-        // Request body will include:
-        // {
-        //   message: "user's question",
-        //   playerData: { playerInfo, zones, metadata, storyMode },
-        //   conversationHistory: [ {role, content, timestamp}, ... ],
-        //   selectedMatch: index or null
-        // }
-        //
-        // Expected response:
-        // {
-        //   response: "AI coaching advice text"
-        // }
         async function callAICoach(userMessage) {
             console.log("Calling AI with message:", userMessage);
 
@@ -782,7 +741,7 @@
                     metadata: playerData.metadata,
                     storyMode: playerData.storyMode
                 },
-                selectedMatch: selectedMatch
+                selectedMatch: selectedMatch !== null ? matchesData[selectedMatch] : null
             };
 
             const response = await fetch(`${API_URL}/api/coach`, {

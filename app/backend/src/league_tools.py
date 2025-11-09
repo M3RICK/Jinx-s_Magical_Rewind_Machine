@@ -396,9 +396,9 @@ def get_recent_matches(count: int = 10):
     try:
         # Import DynamoDB modules
         from db.src.repositories.match_repository import MatchRepository
-        from db.src.db_handshake import get_dynamodb_reasources
+        from db.src.db_handshake import get_dynamodb_resources
 
-        dynamodb = get_dynamodb_reasources()
+        dynamodb = get_dynamodb_resources()
         match_repo = MatchRepository(dynamodb)
 
         # Limit to max 20 matches
