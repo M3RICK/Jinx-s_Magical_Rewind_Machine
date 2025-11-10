@@ -15,7 +15,7 @@ After entering your summoner information and selecting your mode, you're present
 
 - **Top Lane**
 - **Mid Lane**
-- **Bottom Lane**
+- **Bottom Lane (Handles both support or ADC based on your recent matches)**
 - **Jungle**
 - **Dragon Pit**
 - **Baron Nashor**
