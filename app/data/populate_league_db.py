@@ -10,7 +10,8 @@ Run this after creating the database with init_league_db.py
 """
 
 import sqlite3
-import requests
+import aiohttp
+import asyncio
 import json
 import os
 
@@ -21,35 +22,39 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'league_data.db')
 LATEST_VERSION_URL = "https://ddragon.leagueoflegends.com/api/versions.json"
 BASE_URL = "https://ddragon.leagueoflegends.com/cdn"
 
-def get_latest_patch():
+async def get_latest_patch():
     """Get the latest patch version from Riot."""
-    response = requests.get(LATEST_VERSION_URL)
-    versions = response.json()
-    return versions[0]  # Most recent version
+    async with aiohttp.ClientSession() as session:
+        async with session.get(LATEST_VERSION_URL) as response:
+            versions = await response.json()
+            return versions[0]  # Most recent version
 
-def fetch_items(patch):
+async def fetch_items(patch):
     """Fetch all items from Data Dragon."""
     url = f"{BASE_URL}/{patch}/data/en_US/item.json"
-    response = requests.get(url)
-    return response.json()
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            return await response.json()
 
-def fetch_champions(patch):
+async def fetch_champions(patch):
     """Fetch all champions from Data Dragon."""
     url = f"{BASE_URL}/{patch}/data/en_US/champion.json"
-    response = requests.get(url)
-    return response.json()
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            return await response.json()
 
-def fetch_champion_detail(champion_id, patch):
+async def fetch_champion_detail(champion_id, patch, session):
     """Fetch detailed info for a specific champion."""
     url = f"{BASE_URL}/{patch}/data/en_US/champion/{champion_id}.json"
-    response = requests.get(url)
-    return response.json()
+    async with session.get(url) as response:
+        return await response.json()
 
-def fetch_runes(patch):
+async def fetch_runes(patch):
     """Fetch all runes from Data Dragon."""
     url = f"{BASE_URL}/{patch}/data/en_US/runesReforged.json"
-    response = requests.get(url)
-    return response.json()
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            return await response.json()
 
 def populate_items(conn, items_data, patch):
     """Insert items into database."""
@@ -126,76 +131,77 @@ def populate_items(conn, items_data, patch):
 
     conn.commit()
 
-def populate_champions(conn, champions_data, patch):
+async def populate_champions(conn, champions_data, patch):
     """Insert champions into database."""
     cursor = conn.cursor()
 
     champions = champions_data.get('data', {})
 
-    for champ_id, champ in champions.items():
-        # Fetch detailed info
-        detail = fetch_champion_detail(champ_id, patch)
-        champ_detail = detail['data'][champ_id]
+    async with aiohttp.ClientSession() as session:
+        for champ_id, champ in champions.items():
+            # Fetch detailed info
+            detail = await fetch_champion_detail(champ_id, patch, session)
+            champ_detail = detail['data'][champ_id]
 
-        # Stats
-        stats = champ_detail.get('stats', {})
+            # Stats
+            stats = champ_detail.get('stats', {})
 
-        # Abilities
-        spells = champ_detail.get('spells', [])
-        passive = champ_detail.get('passive', {})
+            # Abilities
+            spells = champ_detail.get('spells', [])
+            passive = champ_detail.get('passive', {})
 
-        # Roles
-        tags = champ.get('tags', [])
-        primary_role = tags[0] if len(tags) > 0 else None
-        secondary_role = tags[1] if len(tags) > 1 else None
+            # Roles
+            tags = champ.get('tags', [])
+            primary_role = tags[0] if len(tags) > 0 else None
+            secondary_role = tags[1] if len(tags) > 1 else None
 
-        # Image
-        image = champ.get('image', {})
+            # Image
+            image = champ.get('image', {})
 
-        cursor.execute("""
-            INSERT OR REPLACE INTO champions (
-                champion_id, champion_key, name, title,
-                primary_role, secondary_role, tags, difficulty,
-                hp, hp_per_level, mp, mp_per_level,
-                armor, armor_per_level, magic_resist, magic_resist_per_level,
-                attack_damage, attack_damage_per_level,
-                attack_speed, attack_speed_per_level,
-                attack_range, move_speed,
-                passive, q_ability, w_ability, e_ability, r_ability,
-                blurb, image_full, image_sprite
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            champ_id,
-            int(champ.get('key', 0)),
-            champ.get('name', ''),
-            champ.get('title', ''),
-            primary_role,
-            secondary_role,
-            json.dumps(tags),
-            champ.get('info', {}).get('difficulty', 0),
-            stats.get('hp', 0),
-            stats.get('hpperlevel', 0),
-            stats.get('mp', 0),
-            stats.get('mpperlevel', 0),
-            stats.get('armor', 0),
-            stats.get('armorperlevel', 0),
-            stats.get('spellblock', 0),
-            stats.get('spellblockperlevel', 0),
-            stats.get('attackdamage', 0),
-            stats.get('attackdamageperlevel', 0),
-            stats.get('attackspeed', 0),
-            stats.get('attackspeedperlevel', 0),
-            stats.get('attackrange', 0),
-            stats.get('movespeed', 0),
-            json.dumps({'name': passive.get('name', ''), 'description': passive.get('description', '')}),
-            json.dumps({'name': spells[0].get('name', ''), 'description': spells[0].get('description', '')}) if len(spells) > 0 else None,
-            json.dumps({'name': spells[1].get('name', ''), 'description': spells[1].get('description', '')}) if len(spells) > 1 else None,
-            json.dumps({'name': spells[2].get('name', ''), 'description': spells[2].get('description', '')}) if len(spells) > 2 else None,
-            json.dumps({'name': spells[3].get('name', ''), 'description': spells[3].get('description', '')}) if len(spells) > 3 else None,
-            champ.get('blurb', ''),
-            image.get('full', ''),
-            image.get('sprite', '')
-        ))
+            cursor.execute("""
+                INSERT OR REPLACE INTO champions (
+                    champion_id, champion_key, name, title,
+                    primary_role, secondary_role, tags, difficulty,
+                    hp, hp_per_level, mp, mp_per_level,
+                    armor, armor_per_level, magic_resist, magic_resist_per_level,
+                    attack_damage, attack_damage_per_level,
+                    attack_speed, attack_speed_per_level,
+                    attack_range, move_speed,
+                    passive, q_ability, w_ability, e_ability, r_ability,
+                    blurb, image_full, image_sprite
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                champ_id,
+                int(champ.get('key', 0)),
+                champ.get('name', ''),
+                champ.get('title', ''),
+                primary_role,
+                secondary_role,
+                json.dumps(tags),
+                champ.get('info', {}).get('difficulty', 0),
+                stats.get('hp', 0),
+                stats.get('hpperlevel', 0),
+                stats.get('mp', 0),
+                stats.get('mpperlevel', 0),
+                stats.get('armor', 0),
+                stats.get('armorperlevel', 0),
+                stats.get('spellblock', 0),
+                stats.get('spellblockperlevel', 0),
+                stats.get('attackdamage', 0),
+                stats.get('attackdamageperlevel', 0),
+                stats.get('attackspeed', 0),
+                stats.get('attackspeedperlevel', 0),
+                stats.get('attackrange', 0),
+                stats.get('movespeed', 0),
+                json.dumps({'name': passive.get('name', ''), 'description': passive.get('description', '')}),
+                json.dumps({'name': spells[0].get('name', ''), 'description': spells[0].get('description', '')}) if len(spells) > 0 else None,
+                json.dumps({'name': spells[1].get('name', ''), 'description': spells[1].get('description', '')}) if len(spells) > 1 else None,
+                json.dumps({'name': spells[2].get('name', ''), 'description': spells[2].get('description', '')}) if len(spells) > 2 else None,
+                json.dumps({'name': spells[3].get('name', ''), 'description': spells[3].get('description', '')}) if len(spells) > 3 else None,
+                champ.get('blurb', ''),
+                image.get('full', ''),
+                image.get('sprite', '')
+            ))
 
     conn.commit()
 
@@ -248,22 +254,22 @@ def populate_runes(conn, runes_data):
 
     conn.commit()
 
-def main():
+async def main():
     """Main function to populate all data."""
     if not os.path.exists(DB_PATH):
         return
 
-    patch = get_latest_patch()
+    patch = await get_latest_patch()
     conn = sqlite3.connect(DB_PATH)
 
     try:
-        items_data = fetch_items(patch)
+        items_data = await fetch_items(patch)
         populate_items(conn, items_data, patch)
 
-        champions_data = fetch_champions(patch)
-        populate_champions(conn, champions_data, patch)
+        champions_data = await fetch_champions(patch)
+        await populate_champions(conn, champions_data, patch)
 
-        runes_data = fetch_runes(patch)
+        runes_data = await fetch_runes(patch)
         populate_runes(conn, runes_data)
 
     except Exception as e:
@@ -274,4 +280,4 @@ def main():
         conn.close()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

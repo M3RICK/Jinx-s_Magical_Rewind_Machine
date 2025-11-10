@@ -50,7 +50,7 @@ def main():
                 case "chat":
                     asyncio.run(run_chat())
                 case "sync":
-                    run_sync()
+                    asyncio.run(run_sync())
                 case "exit" | "quit" | "q" | "bye" | "kill":
                     print("\nGoodbye!")
                     break
