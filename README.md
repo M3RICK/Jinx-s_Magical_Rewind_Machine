@@ -4,7 +4,7 @@
 
 **Hackathon:** [Rift Rewind - AWS x Riot Games](https://riftrewind.devpost.com/)
 **Live Demo:** [http://riftrewind-production.eba-enkdvi6d.eu-west-3.elasticbeanstalk.com/](http://riftrewind-production.eba-enkdvi6d.eu-west-3.elasticbeanstalk.com/)
-**Documentation:** [Coming Soon - MdBook Documentation](#) <!-- TODO: Add deployed mdbook URL -->
+**Documentation** [MdBook Documentation](https://m3rick.github.io/Jinx-s_Magical_Rewind_Machine/) <!-- TODO: Add deployed mdbook URL -->
 
 ## Team
 
