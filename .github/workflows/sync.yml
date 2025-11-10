@@ -1,8 +1,10 @@
 name: Sync to Portfolio Repos
+# Disabled - configure PAT secrets to re-enable
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - main
 
 jobs:
   sync:
