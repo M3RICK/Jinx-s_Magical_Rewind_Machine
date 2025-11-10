@@ -102,6 +102,9 @@ pip install -r requirements.txt
 
 # Run with Docker Compose (recommended)
 docker-compose up --build
+ then to access the site
+  - Try: http://localhost:5000
+  - If that doesn't work, use: http://localhost:80
 
 # Or run Flask directly
 export FLASK_APP=app/backend/src/main.py
