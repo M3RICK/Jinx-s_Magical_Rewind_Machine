@@ -1,3 +1,12 @@
+# WE WON "Roast Master 3000 Prize" / 1000 USD
+<div align="center">
+  https://devpost.com/software/jinx-s-workshop
+  <br><br>
+  <img src="https://github.com/M3RICK/Jinx-s_Magical_Rewind_Machine/blob/main/Hackathon.png" width="400" alt="Banner">
+  <br><br>
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=7c3aed&height=120&section=footer" width="100%">
+</div>
+
 # RiftRewind: AI-Powered League of Legends Coaching Platform
 
 > Personalized AI coaching with interactive map analysis and persistent conversation memory
