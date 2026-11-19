@@ -1,166 +1,68 @@
-# WE WON "Roast Master 3000 Prize" / 1000 USD
 <div align="center">
-  https://devpost.com/software/jinx-s-workshop
-  <br><br>
-  <img src="https://github.com/M3RICK/Jinx-s_Magical_Rewind_Machine/blob/main/Hackathon.png" width="400" alt="Banner">
-  <br><br>
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=7c3aed&height=120&section=footer" width="100%">
+  <img src="Hackathon.png" width="400" alt="RiftRewind">
 </div>
 
-# RiftRewind: AI-Powered League of Legends Coaching Platform
+# RiftRewind
 
-> Personalized AI coaching with interactive map analysis and persistent conversation memory
+**Prize winner, AWS x Riot Games Hackathon 2025:** "Roast Master 3000" prize, 1000 USD.
+[Devpost page](https://devpost.com/software/jinx-s-workshop) · [Documentation](https://m3rick.github.io/Jinx-s_Magical_Rewind_Machine/)
 
-**Hackathon:** [Rift Rewind - AWS x Riot Games](https://riftrewind.devpost.com/)
-**Live Demo:** [http://riftrewind-production.eba-enkdvi6d.eu-west-3.elasticbeanstalk.com/](http://riftrewind-production.eba-enkdvi6d.eu-west-3.elasticbeanstalk.com/)
-**Documentation** [MdBook Documentation](https://m3rick.github.io/Jinx-s_Magical_Rewind_Machine/) <!-- TODO: Add deployed mdbook URL -->
+A League of Legends coaching site. It pulls a player's recent matches from the Riot API, shows how they played on a clickable map of Summoner's Rift, and lets them chat with an AI coach (Claude Sonnet 4.5 on AWS Bedrock) that remembers past sessions. Every piece of feedback comes in two tones: a serious coach, or a roast.
 
 ## Team
 
-| Member | Role | Responsibilities |
-|--------|------|------------------|
-| **Thierry B.** | Backend & Cloud Infrastructure Lead | Python/Flask backend, AWS infrastructure (Elastic Beanstalk, DynamoDB, Bedrock), AI integration with Claude Sonnet 4.5, database architecture, CLI testing tools |
-| **Aymeric L.** | Riot API Integration & Frontend Lead | Riot Games API integration with Pulsefire, match data processing, interactive map implementation, frontend development (HTML/CSS/JS), coaching session interface |
-| **Hugo P.** | Image Generation & DevOps Lead | Player card generation with Pillow, Docker containerization, custom font rendering, Docker Compose setup |
+| Member | Role |
+|--------|------|
+| Aymeric L. | Riot API integration (Pulsefire), match data processing, interactive map, frontend, coaching interface |
+| Thierry B. | Flask backend, AWS infrastructure (Elastic Beanstalk, DynamoDB, Bedrock), AI integration, database |
+| Hugo P. | Player card generation (Pillow), Docker setup |
 
-## What is RiftRewind?
+## What it does
 
-RiftRewind is a next-generation League of Legends coaching platform that goes beyond traditional stat-tracking sites. We provide:
+- **Interactive map.** Click a lane, the jungle, dragon or baron to get feedback on that zone, built from your recent matches.
+- **AI coach with memory.** The coach can query your match history and League data through tool calls (LangChain), and your conversations are stored per player in DynamoDB, so it picks up where you left off.
+- **Player cards.** A shareable image with a title and description written from your playstyle, over your most-played champion.
 
-- **Interactive Map Analysis:** Explore your gameplay on Summoner's Rift with zone-specific feedback
-- **AI Personal Coach:** Chat with Claude Sonnet 4.5 that remembers your progress across sessions
-- **Shareable Player Cards:** AI-generated custom cards featuring your playstyle and favorite champions
-- **Two Feedback Modes:** Choose between professional coaching or entertaining roasts
+## How it works
 
-Built during the AWS x Riot Games hackathon, RiftRewind transforms match data into actionable insights that help you improve while having fun.
+| Layer | Stack |
+|-------|-------|
+| Backend | Python 3.12, Flask |
+| Match data | Riot Games API through Pulsefire, aggregated with Pandas |
+| AI | Claude Sonnet 4.5 on AWS Bedrock, LangChain tool calling |
+| Storage | SQLite for static game data (champions, items, runes), DynamoDB for players and conversations |
+| Frontend | Plain HTML, CSS and JavaScript, Canvas for the map |
+| Cards | Pillow with the Teko font |
+| Deployment | Docker, AWS Elastic Beanstalk (the hackathon deployment is now offline) |
 
-## Tech Stack
-
-### Backend
-- **Python 3.12** with Flask web framework
-- **AWS Elastic Beanstalk** for deployment and auto-scaling
-- **SQLite** for static League data (champions, items, runes)
-- **AWS DynamoDB** for dynamic player data and conversations
-- **Riot Games API** via Pulsefire library for match data
-
-### AI & Machine Learning
-- **Claude Sonnet 4.5** via AWS Bedrock for AI coaching
-- **LangChain** for AI application framework and tool calling
-- **Tool System** allowing Claude to query game data and player statistics
-- **Conversation Memory** storing chat history per player for continuity
-
-### Frontend
-- **Vanilla HTML/CSS/JavaScript** for simplicity and performance
-- **Canvas API** for interactive Summoner's Rift map
-- **Responsive Design** with smooth camera controls
-
-### DevOps
-- **Docker** for containerization
-- **Docker Compose** for local development
-- **Custom Font Integration** (Teko family) for player cards
-
-### Data Processing
-- **Pandas** for match statistics aggregation
-- **Pillow** for player card image generation
-- **aiohttp** for async API calls
-
-## Features
-
-### 1. Ignite the Rewind - Interactive Map
-Navigate an interactive Summoner's Rift with clickable zones:
-- Click on lanes, jungle, dragon, and baron for specific feedback
-- Zone-based performance analysis from your recent matches
-- Smooth camera controls and zoom functionality
-
-### 2. AI Coaching with Memory
-Chat with your personal AI coach powered by Claude Sonnet 4.5:
-- Remembers your previous conversations and progress
-- Accesses complete League knowledge (champions, items, builds, counters)
-- Can query your match history for personalized advice
-- Tool calling system for real-time data retrieval
-
-### 3. Player Cards
-Generate and share beautiful custom cards:
-- AI-generated titles based on your playstyle
-- Personalized descriptions in Coach or Roast mode
-- Your most-played champion as background
-- Shareable on Discord, Twitter, and other platforms
-
-### 4. Dual Feedback Modes
-- **Coach Mode:** Professional, constructive feedback
-- **Roast Mode:** Humorous, brutally honest (but still helpful!)
-
-## Quick Start
-
-### Try It Live
-Visit [http://riftrewind-production.eba-enkdvi6d.eu-west-3.elasticbeanstalk.com/](http://riftrewind-production.eba-enkdvi6d.eu-west-3.elasticbeanstalk.com/)
-
-Note: Site may be temporarily down. Try again later if unavailable.
-
-### Run Locally
+## Run it locally
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd G-PRO-500-TLS-5-1-professionalwork-23
-
-# Setup environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Run with Docker Compose (recommended)
-docker-compose up --build
- then to access the site
-  - Try: http://localhost:5000
-  - If that doesn't work, use: http://localhost:80
-
-# Or run Flask directly
-export FLASK_APP=app/backend/src/main.py
-flask run --port=5000
+git clone https://github.com/M3RICK/Jinx-s_Magical_Rewind_Machine.git
+cd Jinx-s_Magical_Rewind_Machine
 ```
 
-### Environment Variables
-Create a `.env` file:
+Create a `.env` file next to `docker-compose.yml`:
+
 ```bash
+RIOT_API_KEY=your_riot_key
 AWS_REGION=eu-west-3
 AWS_ACCESS_KEY_ID=your_key
 AWS_SECRET_ACCESS_KEY=your_secret
-RIOT_API_KEY=your_riot_key
 ```
 
-See [Getting Started Documentation](#) for detailed setup instructions.
+Then start it and open http://localhost:
 
-## Documentation
+```bash
+docker compose up --build
+```
 
-**Comprehensive documentation is available in our MdBook:**
-- [Documentation](https://your-deployed-mdbook-url-here.com) <!-- TODO: Update with actual URL -->
+No AWS account? Set `USE_MOCK_DB=true` and `USE_MOCK_AI=true` in `docker-compose.yml` to run with a mock database and a mock coach.
 
-**Quick Links:**
-- Architecture Overview
-- Tech Stack Details
-- Data Management
-- AI Integration Guide
-- Team & Credits
-- Challenges & Learnings
+## Credits
 
-## Acknowledgments
-
-**Special Thanks:**
-- **Riot Games** for organizing this hackathon and providing API access
-- **Amazon Web Services** for cloud infrastructure and sponsorship
-- **Anthropic** for Claude Sonnet 4.5 via AWS Bedrock
-
-**Open Source Libraries:**
-- Pulsefire (Riot API wrapper)
-- Flask, LangChain, Pillow, Pandas, and many more
+Built for the [Rift Rewind hackathon](https://riftrewind.devpost.com/) organized by Riot Games and Amazon Web Services. Claude Sonnet 4.5 by Anthropic, through AWS Bedrock. Riot API access through [Pulsefire](https://github.com/ianhco/pulsefire).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Built during a hackathon. From League players, for League players.**
-
-*Last Updated: January 2025*
+MIT, see [LICENSE](LICENSE).
